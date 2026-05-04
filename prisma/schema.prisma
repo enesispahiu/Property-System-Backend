@@ -1,0 +1,175 @@
+// Prisma Schema - Property Rental System
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Tenant {
+  id         Int        @id @default(autoincrement())
+  name       String
+  users      User[]
+  properties Property[]
+  createdAt  DateTime   @default(now())
+}
+
+model Role {
+  id    Int    @id @default(autoincrement())
+  name  String
+  users User[]
+}
+
+model User {
+  id       Int    @id @default(autoincrement())
+  email    String @unique
+  password String
+
+  roleId Int
+  role   Role @relation(fields: [roleId], references: [id])
+
+  tenantId Int
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  bookings      Booking[]
+  reviews       Review[]
+  messages      ChatMessage[]
+  refreshTokens RefreshToken[]
+
+  createdAt  DateTime   @default(now())
+  properties Property[]
+}
+
+model Property {
+  id          Int    @id @default(autoincrement())
+  title       String
+  description String
+  price       Float
+  location    String
+
+  tenantId Int
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  ownerId Int
+  owner   User @relation(fields: [ownerId], references: [id])
+
+  images       PropertyImage[]
+  amenities    PropertyAmenity[]
+  bookings     Booking[]
+  reviews      Review[]
+  availability Availability[]
+
+  categoryId Int?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Booking {
+  id        Int      @id @default(autoincrement())
+  startDate DateTime
+  endDate   DateTime
+  status    String
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  propertyId Int
+  property   Property @relation(fields: [propertyId], references: [id])
+
+  payments  Payment[]
+  createdAt DateTime  @default(now())
+}
+
+model Review {
+  id      Int    @id @default(autoincrement())
+  rating  Int
+  comment String
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  propertyId Int
+  property   Property @relation(fields: [propertyId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Amenity {
+  id         Int               @id @default(autoincrement())
+  name       String
+  properties PropertyAmenity[]
+}
+
+model PropertyAmenity {
+  id Int @id @default(autoincrement())
+
+  propertyId Int
+  property   Property @relation(fields: [propertyId], references: [id])
+
+  amenityId Int
+  amenity   Amenity @relation(fields: [amenityId], references: [id])
+}
+
+model PropertyImage {
+  id  Int    @id @default(autoincrement())
+  url String
+
+  propertyId Int
+  property   Property @relation(fields: [propertyId], references: [id])
+}
+
+model Payment {
+  id     Int    @id @default(autoincrement())
+  amount Float
+  status String
+
+  bookingId Int
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id         Int        @id @default(autoincrement())
+  name       String
+  properties Property[]
+}
+
+model Availability {
+  id        Int      @id @default(autoincrement())
+  startDate DateTime
+  endDate   DateTime
+
+  propertyId Int
+  property   Property @relation(fields: [propertyId], references: [id])
+}
+
+model ChatRoom {
+  id       Int           @id @default(autoincrement())
+  messages ChatMessage[]
+}
+
+model ChatMessage {
+  id      Int    @id @default(autoincrement())
+  content String
+
+  senderId Int
+  sender   User @relation(fields: [senderId], references: [id])
+
+  roomId Int
+  room   ChatRoom @relation(fields: [roomId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+}
