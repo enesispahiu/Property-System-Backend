@@ -1,11 +1,25 @@
-import { Module } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
 import { PropertiesService } from './properties.service';
-import { PropertiesController } from './properties.controller';
-import { PrismaModule } from '../prisma/prisma.module';
+import { PrismaService } from '../prisma/prisma.service';
 
-@Module({
-  imports: [PrismaModule],
-  controllers: [PropertiesController],
-  providers: [PropertiesService],
-})
-export class PropertiesModule {}
+describe('PropertiesService', () => {
+  let service: PropertiesService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        PropertiesService,
+        {
+          provide: PrismaService,
+          useValue: {},
+        },
+      ],
+    }).compile();
+
+    service = module.get<PropertiesService>(PropertiesService);
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+});
