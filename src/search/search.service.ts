@@ -7,15 +7,28 @@ export class SearchService {
 
   constructor(private prisma: PrismaService) {}
 
+  private clearExpiredCache() {
+    const now = Date.now();
+
+    for (const [key, value] of this.cache.entries()) {
+      if (value.expiresAt <= now) {
+        this.cache.delete(key);
+      }
+    }
+  }
+
   async searchProperties(query: {
     location?: string;
     minPrice?: string;
     maxPrice?: string;
     rating?: string;
+    categoryId?: string;
     page?: string;
     limit?: string;
     sort?: string;
   }) {
+    this.clearExpiredCache();
+
     const cacheKey = JSON.stringify(query);
     const cachedResult = this.cache.get(cacheKey);
 
@@ -49,6 +62,10 @@ export class SearchService {
       if (query.maxPrice) {
         where.price.lte = Number(query.maxPrice);
       }
+    }
+
+    if (query.categoryId) {
+      where.categoryId = Number(query.categoryId);
     }
 
     let orderBy: any = {
