@@ -3,6 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class SearchService {
+  private cache = new Map<string, { data: any; expiresAt: number }>();
+
   constructor(private prisma: PrismaService) {}
 
   async searchProperties(query: {
@@ -13,6 +15,16 @@ export class SearchService {
     limit?: string;
     sort?: string;
   }) {
+    const cacheKey = JSON.stringify(query);
+    const cachedResult = this.cache.get(cacheKey);
+
+    if (cachedResult && cachedResult.expiresAt > Date.now()) {
+      return {
+        ...cachedResult.data,
+        cached: true,
+      };
+    }
+
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 10;
     const skip = (page - 1) * limit;
@@ -66,7 +78,7 @@ export class SearchService {
       }),
     ]);
 
-    return {
+    const result = {
       data: properties,
       pagination: {
         page,
@@ -74,6 +86,14 @@ export class SearchService {
         total,
         totalPages: Math.ceil(total / limit),
       },
+      cached: false,
     };
+
+    this.cache.set(cacheKey, {
+      data: result,
+      expiresAt: Date.now() + 60 * 1000,
+    });
+
+    return result;
   }
 }
