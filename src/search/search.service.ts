@@ -32,6 +32,12 @@ export class SearchService {
     const cacheKey = JSON.stringify(query);
     const cachedResult = this.cache.get(cacheKey);
 
+    await this.prisma.searchHistory.create({
+      data: {
+        query: JSON.stringify(query),
+      },
+    });
+
     if (cachedResult && cachedResult.expiresAt > Date.now()) {
       return {
         ...cachedResult.data,
@@ -136,5 +142,14 @@ export class SearchService {
     });
 
     return result;
+  }
+
+  async getSearchHistory() {
+    return this.prisma.searchHistory.findMany({
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 50,
+    });
   }
 }

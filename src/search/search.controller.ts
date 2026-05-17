@@ -9,4 +9,9 @@ export class SearchController {
   searchProperties(@Query() query: any) {
     return this.searchService.searchProperties(query);
   }
+
+  @Get('history')
+  getSearchHistory() {
+    return this.searchService.getSearchHistory();
+  }
 }
