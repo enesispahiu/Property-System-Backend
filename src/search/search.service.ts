@@ -11,6 +11,7 @@ export class SearchService {
     location?: string;
     minPrice?: string;
     maxPrice?: string;
+    rating?: string;
     page?: string;
     limit?: string;
     sort?: string;
@@ -66,20 +67,43 @@ export class SearchService {
       };
     }
 
-    const [properties, total] = await Promise.all([
-      this.prisma.property.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy,
-      }),
-      this.prisma.property.count({
-        where,
-      }),
-    ]);
+    const properties = await this.prisma.property.findMany({
+      where,
+      orderBy,
+      include: {
+        reviews: true,
+      },
+    });
+
+    let propertiesWithRating = properties.map((property) => {
+      const totalReviews = property.reviews.length;
+
+      const averageRating =
+        totalReviews > 0
+          ? property.reviews.reduce((sum, review) => sum + review.rating, 0) /
+            totalReviews
+          : 0;
+
+      return {
+        ...property,
+        averageRating: Number(averageRating.toFixed(1)),
+        totalReviews,
+      };
+    });
+
+    if (query.rating) {
+      const minRating = Number(query.rating);
+
+      propertiesWithRating = propertiesWithRating.filter(
+        (property) => property.averageRating >= minRating,
+      );
+    }
+
+    const total = propertiesWithRating.length;
+    const paginatedProperties = propertiesWithRating.slice(skip, skip + limit);
 
     const result = {
-      data: properties,
+      data: paginatedProperties,
       pagination: {
         page,
         limit,
