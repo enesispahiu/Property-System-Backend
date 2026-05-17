@@ -19,6 +19,10 @@ export class UpdatePropertyDto {
   location?: string;
 
   @IsOptional()
+  @IsString()
+  status?: string;
+
+  @IsOptional()
   @IsInt()
   tenantId?: number;
 

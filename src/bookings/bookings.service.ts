@@ -11,6 +11,19 @@ import { UpdateBookingDto } from './dto/update-booking.dto';
 export class BookingsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private calculateTotalPrice(
+    startDate: Date,
+    endDate: Date,
+    pricePerNight: number,
+  ) {
+    const millisecondsPerDay = 1000 * 60 * 60 * 24;
+    const numberOfNights = Math.ceil(
+      (endDate.getTime() - startDate.getTime()) / millisecondsPerDay,
+    );
+
+    return numberOfNights * pricePerNight;
+  }
+
   async create(createBookingDto: CreateBookingDto) {
     const startDate = new Date(createBookingDto.startDate);
     const endDate = new Date(createBookingDto.endDate);
@@ -56,11 +69,18 @@ export class BookingsService {
       );
     }
 
+    const totalPrice = this.calculateTotalPrice(
+      startDate,
+      endDate,
+      property.price,
+    );
+
     return this.prisma.booking.create({
       data: {
         startDate,
         endDate,
         status: createBookingDto.status || 'PENDING',
+        totalPrice,
         userId: createBookingDto.userId,
         propertyId: createBookingDto.propertyId,
       },
@@ -116,18 +136,46 @@ export class BookingsService {
   }
 
   async update(id: number, updateBookingDto: UpdateBookingDto) {
-    await this.findOne(id);
+    const existingBooking = await this.findOne(id);
+
+    const startDate = updateBookingDto.startDate
+      ? new Date(updateBookingDto.startDate)
+      : existingBooking.startDate;
+
+    const endDate = updateBookingDto.endDate
+      ? new Date(updateBookingDto.endDate)
+      : existingBooking.endDate;
+
+    if (endDate <= startDate) {
+      throw new BadRequestException('End date must be after start date');
+    }
+
+    const propertyId =
+      updateBookingDto.propertyId ?? existingBooking.propertyId;
+
+    const property = await this.prisma.property.findUnique({
+      where: { id: propertyId },
+    });
+
+    if (!property) {
+      throw new NotFoundException(`Property with id ${propertyId} not found`);
+    }
+
+    const totalPrice = this.calculateTotalPrice(
+      startDate,
+      endDate,
+      property.price,
+    );
 
     return this.prisma.booking.update({
       where: { id },
       data: {
-        ...updateBookingDto,
-        startDate: updateBookingDto.startDate
-          ? new Date(updateBookingDto.startDate)
-          : undefined,
-        endDate: updateBookingDto.endDate
-          ? new Date(updateBookingDto.endDate)
-          : undefined,
+        status: updateBookingDto.status,
+        userId: updateBookingDto.userId,
+        propertyId: updateBookingDto.propertyId,
+        startDate,
+        endDate,
+        totalPrice,
       },
       include: {
         user: true,

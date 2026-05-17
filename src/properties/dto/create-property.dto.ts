@@ -14,6 +14,10 @@ export class CreatePropertyDto {
   @IsString()
   location!: string;
 
+  @IsOptional()
+  @IsString()
+  status?: string;
+
   @IsInt()
   tenantId!: number;
 
