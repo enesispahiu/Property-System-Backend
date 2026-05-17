@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
@@ -11,7 +12,11 @@ import { UpdateReviewDto } from './dto/update-review.dto';
 export class ReviewsService {
   constructor(private prisma: PrismaService) {}
 
-  async createReview(dto: CreateReviewDto) {
+  async createReview(dto: CreateReviewDto, userId: number) {
+    if (!userId) {
+      throw new BadRequestException('User id is required');
+    }
+
     if (dto.rating < 1 || dto.rating > 5) {
       throw new BadRequestException('Rating must be between 1 and 5');
     }
@@ -32,7 +37,7 @@ export class ReviewsService {
 
     const user = await this.prisma.user.findUnique({
       where: {
-        id: dto.userId,
+        id: userId,
       },
     });
 
@@ -42,7 +47,7 @@ export class ReviewsService {
 
     const existingReview = await this.prisma.review.findFirst({
       where: {
-        userId: dto.userId,
+        userId,
         propertyId: dto.propertyId,
       },
     });
@@ -55,7 +60,7 @@ export class ReviewsService {
       data: {
         rating: dto.rating,
         comment: dto.comment,
-        userId: dto.userId,
+        userId,
         propertyId: dto.propertyId,
       },
     });
@@ -112,7 +117,16 @@ export class ReviewsService {
     };
   }
 
-  async updateReview(id: number, dto: UpdateReviewDto) {
+  async updateReview(
+    id: number,
+    dto: UpdateReviewDto,
+    userId: number,
+    role: string,
+  ) {
+    if (!userId) {
+      throw new BadRequestException('User id is required');
+    }
+
     const review = await this.prisma.review.findUnique({
       where: {
         id,
@@ -121,6 +135,13 @@ export class ReviewsService {
 
     if (!review) {
       throw new NotFoundException('Review not found');
+    }
+
+    const isOwner = review.userId === userId;
+    const isAdmin = role === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      throw new ForbiddenException('You are not allowed to update this review');
     }
 
     if (dto.rating !== undefined && (dto.rating < 1 || dto.rating > 5)) {
@@ -139,7 +160,11 @@ export class ReviewsService {
     });
   }
 
-  async deleteReview(id: number) {
+  async deleteReview(id: number, userId: number, role: string) {
+    if (!userId) {
+      throw new BadRequestException('User id is required');
+    }
+
     const review = await this.prisma.review.findUnique({
       where: {
         id,
@@ -148,6 +173,13 @@ export class ReviewsService {
 
     if (!review) {
       throw new NotFoundException('Review not found');
+    }
+
+    const isOwner = review.userId === userId;
+    const isAdmin = role === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      throw new ForbiddenException('You are not allowed to delete this review');
     }
 
     return this.prisma.review.delete({

@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Req,
 } from '@nestjs/common';
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto } from './dto/create-review.dto';
@@ -17,8 +18,10 @@ export class ReviewsController {
   constructor(private readonly reviewsService: ReviewsService) {}
 
   @Post('reviews')
-  createReview(@Body() dto: CreateReviewDto) {
-    return this.reviewsService.createReview(dto);
+  createReview(@Body() dto: CreateReviewDto, @Req() req: any) {
+    const userId = req.user?.id || req.body.userId;
+
+    return this.reviewsService.createReview(dto, Number(userId));
   }
 
   @Get('properties/:propertyId/reviews')
@@ -35,12 +38,19 @@ export class ReviewsController {
   updateReview(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateReviewDto,
+    @Req() req: any,
   ) {
-    return this.reviewsService.updateReview(id, dto);
+    const userId = req.user?.id || req.body.userId;
+    const role = req.user?.role || req.body.role || 'user';
+
+    return this.reviewsService.updateReview(id, dto, Number(userId), role);
   }
 
   @Delete('reviews/:id')
-  deleteReview(@Param('id', ParseIntPipe) id: number) {
-    return this.reviewsService.deleteReview(id);
+  deleteReview(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    const userId = req.user?.id || req.body.userId;
+    const role = req.user?.role || req.body.role || 'user';
+
+    return this.reviewsService.deleteReview(id, Number(userId), role);
   }
 }
