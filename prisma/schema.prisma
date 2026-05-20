@@ -49,6 +49,7 @@ model Property {
   description String
   price       Float
   location    String
+  status      String @default("ACTIVE")
 
   tenantId Int
   tenant   Tenant @relation(fields: [tenantId], references: [id])
@@ -69,10 +70,11 @@ model Property {
 }
 
 model Booking {
-  id        Int      @id @default(autoincrement())
-  startDate DateTime
-  endDate   DateTime
-  status    String
+  id         Int      @id @default(autoincrement())
+  startDate  DateTime
+  endDate    DateTime
+  status     String
+  totalPrice Float?
 
   userId Int
   user   User @relation(fields: [userId], references: [id])
