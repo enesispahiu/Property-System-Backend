@@ -7,6 +7,9 @@ export class AuthUserDto {
   @ApiProperty({ example: 'tenant@example.com' })
   email: string;
 
+  @ApiProperty({ example: 1 })
+  roleId: number;
+
   @ApiProperty({ example: 'TENANT' })
   role: string;
 

@@ -18,7 +18,8 @@ type UserWithRole = {
   email: string;
   password: string;
   tenantId: number;
-  role: { name: string };
+  roleId: number;
+  role: { id: number; name: string };
 };
 
 @Injectable()
@@ -31,10 +32,12 @@ export class AuthService {
     private readonly jwtService: JwtService,
     configService: ConfigService,
   ) {
+    const jwtSecret = configService.get<string>('JWT_SECRET');
+
     this.accessSecret =
-      configService.get<string>('JWT_ACCESS_SECRET') ?? 'dev-access-secret';
+      configService.get<string>('JWT_ACCESS_SECRET') ?? jwtSecret ?? 'dev-jwt-secret';
     this.refreshSecret =
-      configService.get<string>('JWT_REFRESH_SECRET') ?? 'dev-refresh-secret';
+      configService.get<string>('JWT_REFRESH_SECRET') ?? jwtSecret ?? 'dev-jwt-secret';
   }
 
   async register(dto: RegisterDto) {
@@ -141,6 +144,7 @@ export class AuthService {
       id: user.sub,
       email: user.email,
       role: user.role,
+      roleId: user.roleId,
       tenantId: user.tenantId,
     };
   }
@@ -149,6 +153,7 @@ export class AuthService {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
+      roleId: user.roleId,
       role: user.role.name,
       tenantId: user.tenantId,
     };
@@ -178,6 +183,7 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
+        roleId: user.roleId,
         role: user.role.name,
         tenantId: user.tenantId,
       },
