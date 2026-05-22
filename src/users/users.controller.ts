@@ -10,11 +10,13 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import {
+  ApiBody,
   ApiBearerAuth,
   ApiOperation,
   ApiOkResponse,
   ApiNotFoundResponse,
   ApiForbiddenResponse,
+  ApiUnauthorizedResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
@@ -49,6 +51,7 @@ export class UsersController {
       ],
     },
   })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   getAllUsers(@CurrentUser() user: JwtPayload) {
     return this.usersService.getAllUsers(user);
   }
@@ -68,7 +71,10 @@ export class UsersController {
     },
   })
   @ApiNotFoundResponse({ description: 'User not found' })
-  @ApiForbiddenResponse({ description: 'Cannot access users from other tenants' })
+  @ApiForbiddenResponse({
+    description: 'Cannot access users from other tenants',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   getUserById(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: JwtPayload,
@@ -77,7 +83,10 @@ export class UsersController {
   }
 
   @Put(':id')
-  @ApiOperation({ summary: 'Update user (own profile or admin can update any)' })
+  @ApiOperation({
+    summary: 'Update user (own profile or admin can update any)',
+  })
+  @ApiBody({ type: UpdateUserDto })
   @ApiOkResponse({
     schema: {
       example: {
@@ -92,6 +101,7 @@ export class UsersController {
   })
   @ApiNotFoundResponse({ description: 'User not found' })
   @ApiForbiddenResponse({ description: 'Cannot update other users' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   updateUser(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateUserDto,
@@ -116,6 +126,7 @@ export class UsersController {
   })
   @ApiNotFoundResponse({ description: 'User not found' })
   @ApiForbiddenResponse({ description: 'Only admins can delete users' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   deleteUser(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: JwtPayload,
@@ -127,6 +138,7 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Update user role (admin only)' })
+  @ApiBody({ type: UpdateUserRoleDto })
   @ApiOkResponse({
     schema: {
       example: {
@@ -141,6 +153,7 @@ export class UsersController {
   })
   @ApiNotFoundResponse({ description: 'User or role not found' })
   @ApiForbiddenResponse({ description: 'Only admins can change user roles' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
   updateUserRole(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateUserRoleDto,

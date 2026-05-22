@@ -1,10 +1,19 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -26,6 +35,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Register a user and issue access/refresh tokens' })
   @ApiBody({ type: RegisterDto })
   @ApiCreatedResponse({ type: AuthResponseDto })
+  @ApiResponse({ status: 400, description: 'Invalid registration payload' })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
@@ -44,7 +54,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout by invalidating a refresh token' })
   @ApiBody({ type: RefreshTokenDto })
-  @ApiOkResponse({ schema: { example: { message: 'Logged out successfully' } } })
+  @ApiOkResponse({
+    schema: { example: { message: 'Logged out successfully' } },
+  })
+  @ApiUnauthorizedResponse({ description: 'Invalid refresh token' })
   logout(@Body() dto: RefreshTokenDto) {
     return this.authService.logout(dto);
   }
