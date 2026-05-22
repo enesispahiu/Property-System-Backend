@@ -14,6 +14,7 @@ import { JobsModule } from './jobs/jobs.module';
 import { AiModule } from './ai/ai.module';
 import { PropertiesModule } from './properties/properties.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { BookingsModule } from './bookings/bookings.module';
     AiModule,
     PropertiesModule,
     BookingsModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [
