@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -159,11 +160,11 @@ export class AuthService {
     };
 
     const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, {
+      this.jwtService.signAsync({ ...payload, jti: randomUUID() }, {
         secret: this.accessSecret,
         expiresIn: '15m',
       }),
-      this.jwtService.signAsync(payload, {
+      this.jwtService.signAsync({ ...payload, jti: randomUUID() }, {
         secret: this.refreshSecret,
         expiresIn: '7d',
       }),
