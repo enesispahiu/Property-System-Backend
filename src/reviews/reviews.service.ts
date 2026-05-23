@@ -1,22 +1,49 @@
 import {
-  Injectable,
   BadRequestException,
-  NotFoundException,
   ForbiddenException,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
+import { JwtPayload } from '../auth/jwt-payload.type';
 
 @Injectable()
 export class ReviewsService {
   constructor(private prisma: PrismaService) {}
 
-  async createReview(dto: CreateReviewDto, userId: number) {
-    if (!userId) {
-      throw new BadRequestException('User id is required');
+  private async verifyPropertyTenant(
+    propertyId: number,
+    currentUser: JwtPayload,
+  ) {
+    const property = await this.prisma.property.findUnique({
+      where: { id: propertyId },
+    });
+
+    if (!property || property.tenantId !== currentUser.tenantId) {
+      throw new NotFoundException('Property not found');
     }
 
+    return property;
+  }
+
+  private async verifyReviewTenant(id: number, currentUser: JwtPayload) {
+    const review = await this.prisma.review.findFirst({
+      where: {
+        id,
+        tenantId: currentUser.tenantId,
+      },
+    });
+
+    if (!review) {
+      throw new NotFoundException('Review not found');
+    }
+
+    return review;
+  }
+
+  async createReview(dto: CreateReviewDto, currentUser: JwtPayload) {
     if (dto.rating < 1 || dto.rating > 5) {
       throw new BadRequestException('Rating must be between 1 and 5');
     }
@@ -25,29 +52,19 @@ export class ReviewsService {
       throw new BadRequestException('Comment is required');
     }
 
-    const property = await this.prisma.property.findUnique({
-      where: {
-        id: dto.propertyId,
-      },
-    });
-
-    if (!property) {
-      throw new NotFoundException('Property not found');
-    }
+    const property = await this.verifyPropertyTenant(dto.propertyId, currentUser);
 
     const user = await this.prisma.user.findUnique({
-      where: {
-        id: userId,
-      },
+      where: { id: currentUser.sub },
     });
 
-    if (!user) {
+    if (!user || user.tenantId !== currentUser.tenantId) {
       throw new NotFoundException('User not found');
     }
 
     const existingReview = await this.prisma.review.findFirst({
       where: {
-        userId,
+        userId: currentUser.sub,
         propertyId: dto.propertyId,
       },
     });
@@ -60,26 +77,20 @@ export class ReviewsService {
       data: {
         rating: dto.rating,
         comment: dto.comment,
-        userId,
+        userId: currentUser.sub,
         propertyId: dto.propertyId,
+        tenantId: property.tenantId,
       },
     });
   }
 
-  async getPropertyReviews(propertyId: number) {
-    const property = await this.prisma.property.findUnique({
-      where: {
-        id: propertyId,
-      },
-    });
-
-    if (!property) {
-      throw new NotFoundException('Property not found');
-    }
+  async getPropertyReviews(propertyId: number, currentUser: JwtPayload) {
+    await this.verifyPropertyTenant(propertyId, currentUser);
 
     return this.prisma.review.findMany({
       where: {
         propertyId,
+        tenantId: currentUser.tenantId,
       },
       orderBy: {
         createdAt: 'desc',
@@ -87,20 +98,13 @@ export class ReviewsService {
     });
   }
 
-  async getAverageRating(propertyId: number) {
-    const property = await this.prisma.property.findUnique({
-      where: {
-        id: propertyId,
-      },
-    });
-
-    if (!property) {
-      throw new NotFoundException('Property not found');
-    }
+  async getAverageRating(propertyId: number, currentUser: JwtPayload) {
+    await this.verifyPropertyTenant(propertyId, currentUser);
 
     const result = await this.prisma.review.aggregate({
       where: {
         propertyId,
+        tenantId: currentUser.tenantId,
       },
       _avg: {
         rating: true,
@@ -120,25 +124,12 @@ export class ReviewsService {
   async updateReview(
     id: number,
     dto: UpdateReviewDto,
-    userId: number,
-    role: string,
+    currentUser: JwtPayload,
   ) {
-    if (!userId) {
-      throw new BadRequestException('User id is required');
-    }
+    const review = await this.verifyReviewTenant(id, currentUser);
 
-    const review = await this.prisma.review.findUnique({
-      where: {
-        id,
-      },
-    });
-
-    if (!review) {
-      throw new NotFoundException('Review not found');
-    }
-
-    const isOwner = review.userId === userId;
-    const isAdmin = role === 'admin';
+    const isOwner = review.userId === currentUser.sub;
+    const isAdmin = currentUser.role === 'ADMIN';
 
     if (!isOwner && !isAdmin) {
       throw new ForbiddenException('You are not allowed to update this review');
@@ -160,23 +151,11 @@ export class ReviewsService {
     });
   }
 
-  async deleteReview(id: number, userId: number, role: string) {
-    if (!userId) {
-      throw new BadRequestException('User id is required');
-    }
+  async deleteReview(id: number, currentUser: JwtPayload) {
+    const review = await this.verifyReviewTenant(id, currentUser);
 
-    const review = await this.prisma.review.findUnique({
-      where: {
-        id,
-      },
-    });
-
-    if (!review) {
-      throw new NotFoundException('Review not found');
-    }
-
-    const isOwner = review.userId === userId;
-    const isAdmin = role === 'admin';
+    const isOwner = review.userId === currentUser.sub;
+    const isAdmin = currentUser.role === 'ADMIN';
 
     if (!isOwner && !isAdmin) {
       throw new ForbiddenException('You are not allowed to delete this review');
