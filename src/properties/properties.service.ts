@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,74 +8,48 @@ import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { CreatePropertyImageDto } from './dto/create-property-image.dto';
 import { AddPropertyAmenityDto } from './dto/add-property-amenity.dto';
-import { JwtPayload } from '../auth/jwt-payload.type';
 
 @Injectable()
 export class PropertiesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private propertySelection = {
-    tenant: true,
-    owner: true,
-    category: true,
-    images: true,
-    amenities: true,
-    bookings: true,
-    reviews: true,
-    availability: true,
-  };
-
-  private async verifyTenantProperty(id: number, currentUser: JwtPayload) {
-    const property = await this.prisma.property.findFirst({
-      where: {
-        id,
-        tenantId: currentUser.tenantId,
-      },
-    });
-
-    if (!property) {
-      throw new NotFoundException(`Property with id ${id} not found`);
-    }
-
-    return property;
-  }
-
-  async create(createPropertyDto: CreatePropertyDto, currentUser: JwtPayload) {
-    const ownerId = createPropertyDto.ownerId || currentUser.sub;
-    const owner = await this.prisma.user.findUnique({
-      where: { id: ownerId },
-    });
-
-    if (!owner || owner.tenantId !== currentUser.tenantId) {
-      throw new ForbiddenException('Owner must belong to the current tenant');
-    }
-
+  create(createPropertyDto: CreatePropertyDto) {
     return this.prisma.property.create({
-      data: {
-        ...createPropertyDto,
-        tenantId: currentUser.tenantId,
-        ownerId,
-      },
+      data: createPropertyDto,
     });
   }
 
-  findAll(currentUser: JwtPayload) {
+  findAll() {
     return this.prisma.property.findMany({
-      where: { tenantId: currentUser.tenantId },
-      include: this.propertySelection,
+      include: {
+        tenant: true,
+        owner: true,
+        category: true,
+        images: true,
+        amenities: true,
+        bookings: true,
+        reviews: true,
+        availability: true,
+      },
       orderBy: {
         createdAt: 'desc',
       },
     });
   }
 
-  async findOne(id: number, currentUser: JwtPayload) {
-    const property = await this.prisma.property.findFirst({
-      where: {
-        id,
-        tenantId: currentUser.tenantId,
+  async findOne(id: number) {
+    const property = await this.prisma.property.findUnique({
+      where: { id },
+      include: {
+        tenant: true,
+        owner: true,
+        category: true,
+        images: true,
+        amenities: true,
+        bookings: true,
+        reviews: true,
+        availability: true,
       },
-      include: this.propertySelection,
     });
 
     if (!property) {
@@ -86,12 +59,8 @@ export class PropertiesService {
     return property;
   }
 
-  async update(
-    id: number,
-    updatePropertyDto: UpdatePropertyDto,
-    currentUser: JwtPayload,
-  ) {
-    await this.verifyTenantProperty(id, currentUser);
+  async update(id: number, updatePropertyDto: UpdatePropertyDto) {
+    await this.findOne(id);
 
     return this.prisma.property.update({
       where: { id },
@@ -99,12 +68,8 @@ export class PropertiesService {
     });
   }
 
-  async addImage(
-    id: number,
-    createPropertyImageDto: CreatePropertyImageDto,
-    currentUser: JwtPayload,
-  ) {
-    await this.verifyTenantProperty(id, currentUser);
+  async addImage(id: number, createPropertyImageDto: CreatePropertyImageDto) {
+    await this.findOne(id);
 
     return this.prisma.propertyImage.create({
       data: {
@@ -114,42 +79,38 @@ export class PropertiesService {
     });
   }
 
-  async getImages(id: number, currentUser: JwtPayload) {
-    await this.verifyTenantProperty(id, currentUser);
+  async getImages(id: number) {
+    await this.findOne(id);
 
     return this.prisma.propertyImage.findMany({
       where: {
-        property: {
-          id,
-          tenantId: currentUser.tenantId,
-        },
+        propertyId: id,
       },
     });
   }
 
-  async removeImage(imageId: number, currentUser: JwtPayload) {
+  async removeImage(imageId: number) {
     const image = await this.prisma.propertyImage.findUnique({
-      where: { id: imageId },
-      include: {
-        property: true,
+      where: {
+        id: imageId,
       },
     });
 
-    if (!image || image.property.tenantId !== currentUser.tenantId) {
-      throw new NotFoundException(`Property image with id ${imageId} not found`);
+    if (!image) {
+      throw new NotFoundException(
+        `Property image with id ${imageId} not found`,
+      );
     }
 
     return this.prisma.propertyImage.delete({
-      where: { id: imageId },
+      where: {
+        id: imageId,
+      },
     });
   }
 
-  async addAmenity(
-    id: number,
-    addPropertyAmenityDto: AddPropertyAmenityDto,
-    currentUser: JwtPayload,
-  ) {
-    await this.verifyTenantProperty(id, currentUser);
+  async addAmenity(id: number, addPropertyAmenityDto: AddPropertyAmenityDto) {
+    await this.findOne(id);
 
     const amenity = await this.prisma.amenity.findUnique({
       where: {
@@ -188,8 +149,8 @@ export class PropertiesService {
     });
   }
 
-  async getAmenities(id: number, currentUser: JwtPayload) {
-    await this.verifyTenantProperty(id, currentUser);
+  async getAmenities(id: number) {
+    await this.findOne(id);
 
     return this.prisma.propertyAmenity.findMany({
       where: {
@@ -201,17 +162,14 @@ export class PropertiesService {
     });
   }
 
-  async removeAmenity(propertyAmenityId: number, currentUser: JwtPayload) {
+  async removeAmenity(propertyAmenityId: number) {
     const propertyAmenity = await this.prisma.propertyAmenity.findUnique({
       where: {
         id: propertyAmenityId,
       },
-      include: {
-        property: true,
-      },
     });
 
-    if (!propertyAmenity || propertyAmenity.property.tenantId !== currentUser.tenantId) {
+    if (!propertyAmenity) {
       throw new NotFoundException(
         `Property amenity with id ${propertyAmenityId} not found`,
       );
@@ -224,8 +182,8 @@ export class PropertiesService {
     });
   }
 
-  async remove(id: number, currentUser: JwtPayload) {
-    await this.verifyTenantProperty(id, currentUser);
+  async remove(id: number) {
+    await this.findOne(id);
 
     return this.prisma.property.delete({
       where: { id },

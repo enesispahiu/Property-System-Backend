@@ -1,13 +1,11 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
-import { JwtPayload } from '../auth/jwt-payload.type';
 
 @Injectable()
 export class BookingsService {
@@ -26,27 +24,7 @@ export class BookingsService {
     return numberOfNights * pricePerNight;
   }
 
-  private async verifyTenantBooking(id: number, currentUser: JwtPayload) {
-    const booking = await this.prisma.booking.findFirst({
-      where: {
-        id,
-        tenantId: currentUser.tenantId,
-      },
-      include: {
-        user: true,
-        property: true,
-        payments: true,
-      },
-    });
-
-    if (!booking) {
-      throw new NotFoundException(`Booking with id ${id} not found`);
-    }
-
-    return booking;
-  }
-
-  async create(createBookingDto: CreateBookingDto, currentUser: JwtPayload) {
+  async create(createBookingDto: CreateBookingDto) {
     const startDate = new Date(createBookingDto.startDate);
     const endDate = new Date(createBookingDto.endDate);
 
@@ -58,23 +36,10 @@ export class BookingsService {
       where: { id: createBookingDto.propertyId },
     });
 
-    if (!property || property.tenantId !== currentUser.tenantId) {
+    if (!property) {
       throw new NotFoundException(
         `Property with id ${createBookingDto.propertyId} not found`,
       );
-    }
-
-    const bookingUserId =
-      currentUser.role === 'ADMIN'
-        ? createBookingDto.userId ?? currentUser.sub
-        : currentUser.sub;
-
-    const bookingUser = await this.prisma.user.findUnique({
-      where: { id: bookingUserId },
-    });
-
-    if (!bookingUser || bookingUser.tenantId !== currentUser.tenantId) {
-      throw new ForbiddenException('User must belong to the current tenant');
     }
 
     const overlappingBooking = await this.prisma.booking.findFirst({
@@ -116,9 +81,8 @@ export class BookingsService {
         endDate,
         status: createBookingDto.status || 'PENDING',
         totalPrice,
-        userId: bookingUserId,
+        userId: createBookingDto.userId,
         propertyId: createBookingDto.propertyId,
-        tenantId: property.tenantId,
       },
       include: {
         user: true,
@@ -128,9 +92,8 @@ export class BookingsService {
     });
   }
 
-  findAll(currentUser: JwtPayload) {
+  findAll() {
     return this.prisma.booking.findMany({
-      where: { tenantId: currentUser.tenantId },
       include: {
         user: true,
         property: true,
@@ -142,12 +105,9 @@ export class BookingsService {
     });
   }
 
-  async findOne(id: number, currentUser: JwtPayload) {
-    const booking = await this.prisma.booking.findFirst({
-      where: {
-        id,
-        tenantId: currentUser.tenantId,
-      },
+  async findOne(id: number) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id },
       include: {
         user: true,
         property: true,
@@ -162,20 +122,9 @@ export class BookingsService {
     return booking;
   }
 
-  async findByUser(userId: number, currentUser: JwtPayload) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user || user.tenantId !== currentUser.tenantId) {
-      throw new NotFoundException(`User with id ${userId} not found`);
-    }
-
+  findByUser(userId: number) {
     return this.prisma.booking.findMany({
-      where: {
-        userId,
-        tenantId: currentUser.tenantId,
-      },
+      where: { userId },
       include: {
         property: true,
         payments: true,
@@ -186,12 +135,8 @@ export class BookingsService {
     });
   }
 
-  async update(
-    id: number,
-    updateBookingDto: UpdateBookingDto,
-    currentUser: JwtPayload,
-  ) {
-    const existingBooking = await this.verifyTenantBooking(id, currentUser);
+  async update(id: number, updateBookingDto: UpdateBookingDto) {
+    const existingBooking = await this.findOne(id);
 
     const startDate = updateBookingDto.startDate
       ? new Date(updateBookingDto.startDate)
@@ -212,23 +157,8 @@ export class BookingsService {
       where: { id: propertyId },
     });
 
-    if (!property || property.tenantId !== currentUser.tenantId) {
+    if (!property) {
       throw new NotFoundException(`Property with id ${propertyId} not found`);
-    }
-
-    const bookingUserId =
-      currentUser.role === 'ADMIN'
-        ? updateBookingDto.userId ?? existingBooking.userId
-        : existingBooking.userId;
-
-    if (bookingUserId !== existingBooking.userId) {
-      const bookingUser = await this.prisma.user.findUnique({
-        where: { id: bookingUserId },
-      });
-
-      if (!bookingUser || bookingUser.tenantId !== currentUser.tenantId) {
-        throw new ForbiddenException('User must belong to the current tenant');
-      }
     }
 
     const totalPrice = this.calculateTotalPrice(
@@ -241,8 +171,8 @@ export class BookingsService {
       where: { id },
       data: {
         status: updateBookingDto.status,
-        userId: bookingUserId,
-        propertyId: propertyId,
+        userId: updateBookingDto.userId,
+        propertyId: updateBookingDto.propertyId,
         startDate,
         endDate,
         totalPrice,
@@ -255,8 +185,8 @@ export class BookingsService {
     });
   }
 
-  async cancel(id: number, currentUser: JwtPayload) {
-    await this.verifyTenantBooking(id, currentUser);
+  async cancel(id: number) {
+    await this.findOne(id);
 
     return this.prisma.booking.update({
       where: { id },
@@ -266,8 +196,8 @@ export class BookingsService {
     });
   }
 
-  async confirm(id: number, currentUser: JwtPayload) {
-    await this.verifyTenantBooking(id, currentUser);
+  async confirm(id: number) {
+    await this.findOne(id);
 
     return this.prisma.booking.update({
       where: { id },
@@ -277,8 +207,8 @@ export class BookingsService {
     });
   }
 
-  async remove(id: number, currentUser: JwtPayload) {
-    await this.verifyTenantBooking(id, currentUser);
+  async remove(id: number) {
+    await this.findOne(id);
 
     return this.prisma.booking.delete({
       where: { id },
