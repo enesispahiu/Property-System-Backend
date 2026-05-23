@@ -66,7 +66,7 @@ export class BookingsService {
 
     const bookingUserId =
       currentUser.role === 'ADMIN'
-        ? createBookingDto.userId ?? currentUser.sub
+        ? (createBookingDto.userId ?? currentUser.sub)
         : currentUser.sub;
 
     const bookingUser = await this.prisma.user.findUnique({
@@ -216,9 +216,34 @@ export class BookingsService {
       throw new NotFoundException(`Property with id ${propertyId} not found`);
     }
 
+    const overlappingBooking = await this.prisma.booking.findFirst({
+      where: {
+        id: {
+          not: id,
+        },
+        propertyId,
+        tenantId: currentUser.tenantId,
+        status: {
+          not: 'CANCELLED',
+        },
+        startDate: {
+          lt: endDate,
+        },
+        endDate: {
+          gt: startDate,
+        },
+      },
+    });
+
+    if (overlappingBooking) {
+      throw new BadRequestException(
+        'Property is already booked for the selected dates',
+      );
+    }
+
     const bookingUserId =
       currentUser.role === 'ADMIN'
-        ? updateBookingDto.userId ?? existingBooking.userId
+        ? (updateBookingDto.userId ?? existingBooking.userId)
         : existingBooking.userId;
 
     if (bookingUserId !== existingBooking.userId) {
