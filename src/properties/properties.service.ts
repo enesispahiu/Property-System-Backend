@@ -60,9 +60,11 @@ export class PropertiesService {
     });
   }
 
-  findAll(currentUser: JwtPayload) {
+  findAll(currentUser?: JwtPayload) {
     return this.prisma.property.findMany({
-      where: { tenantId: currentUser.tenantId },
+      where: currentUser
+        ? { tenantId: currentUser.tenantId }
+        : { status: 'ACTIVE' },
       include: this.propertySelection,
       orderBy: {
         createdAt: 'desc',
@@ -70,11 +72,13 @@ export class PropertiesService {
     });
   }
 
-  async findOne(id: number, currentUser: JwtPayload) {
+  async findOne(id: number, currentUser?: JwtPayload) {
     const property = await this.prisma.property.findFirst({
       where: {
         id,
-        tenantId: currentUser.tenantId,
+        ...(currentUser
+          ? { tenantId: currentUser.tenantId }
+          : { status: 'ACTIVE' }),
       },
       include: this.propertySelection,
     });
@@ -114,14 +118,20 @@ export class PropertiesService {
     });
   }
 
-  async getImages(id: number, currentUser: JwtPayload) {
-    await this.verifyTenantProperty(id, currentUser);
+  async getImages(id: number, currentUser?: JwtPayload) {
+    if (currentUser) {
+      await this.verifyTenantProperty(id, currentUser);
+    } else {
+      await this.findOne(id);
+    }
 
     return this.prisma.propertyImage.findMany({
       where: {
         property: {
           id,
-          tenantId: currentUser.tenantId,
+          ...(currentUser
+            ? { tenantId: currentUser.tenantId }
+            : { status: 'ACTIVE' }),
         },
       },
     });
@@ -188,12 +198,19 @@ export class PropertiesService {
     });
   }
 
-  async getAmenities(id: number, currentUser: JwtPayload) {
-    await this.verifyTenantProperty(id, currentUser);
+  async getAmenities(id: number, currentUser?: JwtPayload) {
+    if (currentUser) {
+      await this.verifyTenantProperty(id, currentUser);
+    } else {
+      await this.findOne(id);
+    }
 
     return this.prisma.propertyAmenity.findMany({
       where: {
         propertyId: id,
+        ...(currentUser
+          ? { property: { tenantId: currentUser.tenantId } }
+          : { property: { status: 'ACTIVE' } }),
       },
       include: {
         amenity: true,

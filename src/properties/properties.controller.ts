@@ -20,11 +20,11 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.type';
 
 @Controller('properties')
-@UseGuards(JwtAuthGuard, TenantGuard)
 export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, TenantGuard)
   create(
     @Body() createPropertyDto: CreatePropertyDto,
     @CurrentUser() currentUser: JwtPayload,
@@ -33,11 +33,12 @@ export class PropertiesController {
   }
 
   @Get()
-  findAll(@CurrentUser() currentUser: JwtPayload) {
+  findAll(@CurrentUser() currentUser?: JwtPayload) {
     return this.propertiesService.findAll(currentUser);
   }
 
   @Post(':id/images')
+  @UseGuards(JwtAuthGuard, TenantGuard)
   addImage(
     @Param('id', ParseIntPipe) id: number,
     @Body() createPropertyImageDto: CreatePropertyImageDto,
@@ -49,12 +50,13 @@ export class PropertiesController {
   @Get(':id/images')
   getImages(
     @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() currentUser: JwtPayload,
+    @CurrentUser() currentUser?: JwtPayload,
   ) {
     return this.propertiesService.getImages(id, currentUser);
   }
 
   @Delete('images/:imageId')
+  @UseGuards(JwtAuthGuard, TenantGuard)
   removeImage(
     @Param('imageId', ParseIntPipe) imageId: number,
     @CurrentUser() currentUser: JwtPayload,
@@ -63,6 +65,7 @@ export class PropertiesController {
   }
 
   @Post(':id/amenities')
+  @UseGuards(JwtAuthGuard, TenantGuard)
   addAmenity(
     @Param('id', ParseIntPipe) id: number,
     @Body() addPropertyAmenityDto: AddPropertyAmenityDto,
@@ -74,12 +77,13 @@ export class PropertiesController {
   @Get(':id/amenities')
   getAmenities(
     @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() currentUser: JwtPayload,
+    @CurrentUser() currentUser?: JwtPayload,
   ) {
     return this.propertiesService.getAmenities(id, currentUser);
   }
 
   @Delete('amenities/:propertyAmenityId')
+  @UseGuards(JwtAuthGuard, TenantGuard)
   removeAmenity(
     @Param('propertyAmenityId', ParseIntPipe) propertyAmenityId: number,
     @CurrentUser() currentUser: JwtPayload,
@@ -90,12 +94,13 @@ export class PropertiesController {
   @Get(':id')
   findOne(
     @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() currentUser: JwtPayload,
+    @CurrentUser() currentUser?: JwtPayload,
   ) {
     return this.propertiesService.findOne(id, currentUser);
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, TenantGuard)
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updatePropertyDto: UpdatePropertyDto,
@@ -105,6 +110,7 @@ export class PropertiesController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, TenantGuard)
   remove(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: JwtPayload,

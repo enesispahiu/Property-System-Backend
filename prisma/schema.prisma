@@ -188,3 +188,14 @@ model SearchHistory {
   query     String
   createdAt DateTime @default(now())
 }
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  action    String
+  entity    String
+  entityId  Int?
+  userId    Int?
+  tenantId  Int?
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
