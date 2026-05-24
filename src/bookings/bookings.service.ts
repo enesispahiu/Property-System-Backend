@@ -1,8 +1,8 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -58,16 +58,19 @@ export class BookingsService {
       where: { id: createBookingDto.propertyId },
     });
 
-    if (!property || property.tenantId !== currentUser.tenantId) {
+    if (!property) {
       throw new NotFoundException(
         `Property with id ${createBookingDto.propertyId} not found`,
       );
     }
 
-    const bookingUserId =
-      currentUser.role === 'ADMIN'
-        ? (createBookingDto.userId ?? currentUser.sub)
-        : currentUser.sub;
+    if (property.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        `Property with id ${createBookingDto.propertyId} is not active`,
+      );
+    }
+
+    const bookingUserId = currentUser.sub;
 
     const bookingUser = await this.prisma.user.findUnique({
       where: { id: bookingUserId },
@@ -81,7 +84,7 @@ export class BookingsService {
       where: {
         propertyId: createBookingDto.propertyId,
         status: {
-          in: ['PENDING', 'CONFIRMED'],
+          not: 'CANCELLED',
         },
         AND: [
           {
@@ -114,7 +117,7 @@ export class BookingsService {
       data: {
         startDate,
         endDate,
-        status: createBookingDto.status || 'PENDING',
+        status: 'PENDING',
         totalPrice,
         userId: bookingUserId,
         propertyId: createBookingDto.propertyId,
@@ -170,14 +173,6 @@ export class BookingsService {
   }
 
   async findByUser(userId: number, currentUser: JwtPayload) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user || user.tenantId !== currentUser.tenantId) {
-      throw new NotFoundException(`User with id ${userId} not found`);
-    }
-
     if (currentUser.role !== 'ADMIN' && userId !== currentUser.sub) {
       throw new ForbiddenException('You cannot access bookings for this user');
     }
@@ -185,10 +180,16 @@ export class BookingsService {
     return this.prisma.booking.findMany({
       where: {
         userId,
-        tenantId: currentUser.tenantId,
       },
       include: {
-        property: true,
+        property: {
+          select: {
+            id: true,
+            title: true,
+            location: true,
+            price: true,
+          },
+        },
         payments: true,
       },
       orderBy: {

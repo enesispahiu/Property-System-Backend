@@ -13,15 +13,15 @@ import { JwtPayload } from '../auth/jwt-payload.type';
 export class ReviewsService {
   constructor(private prisma: PrismaService) {}
 
-  private async verifyPropertyTenant(
-    propertyId: number,
-    currentUser: JwtPayload,
-  ) {
-    const property = await this.prisma.property.findUnique({
-      where: { id: propertyId },
+  private async verifyActiveProperty(propertyId: number) {
+    const property = await this.prisma.property.findFirst({
+      where: {
+        id: propertyId,
+        status: 'ACTIVE',
+      },
     });
 
-    if (!property || property.tenantId !== currentUser.tenantId) {
+    if (!property) {
       throw new NotFoundException('Property not found');
     }
 
@@ -52,7 +52,7 @@ export class ReviewsService {
       throw new BadRequestException('Comment is required');
     }
 
-    const property = await this.verifyPropertyTenant(dto.propertyId, currentUser);
+    const property = await this.verifyActiveProperty(dto.propertyId);
 
     const user = await this.prisma.user.findUnique({
       where: { id: currentUser.sub },
@@ -99,12 +99,11 @@ export class ReviewsService {
   }
 
   async getPropertyReviews(propertyId: number, currentUser: JwtPayload) {
-    await this.verifyPropertyTenant(propertyId, currentUser);
+    await this.verifyActiveProperty(propertyId);
 
     return this.prisma.review.findMany({
       where: {
         propertyId,
-        tenantId: currentUser.tenantId,
       },
       include: {
         user: {
@@ -127,12 +126,11 @@ export class ReviewsService {
   }
 
   async getAverageRating(propertyId: number, currentUser: JwtPayload) {
-    await this.verifyPropertyTenant(propertyId, currentUser);
+    await this.verifyActiveProperty(propertyId);
 
     const result = await this.prisma.review.aggregate({
       where: {
         propertyId,
-        tenantId: currentUser.tenantId,
       },
       _avg: {
         rating: true,
