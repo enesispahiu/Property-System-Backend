@@ -11,8 +11,9 @@ export class CreateBookingDto {
   @IsString()
   status?: string;
 
+  @IsOptional()
   @IsInt()
-  userId!: number;
+  userId?: number;
 
   @IsInt()
   propertyId!: number;

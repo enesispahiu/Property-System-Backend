@@ -15,8 +15,10 @@ import { UpdatePropertyDto } from './dto/update-property.dto';
 import { CreatePropertyImageDto } from './dto/create-property-image.dto';
 import { AddPropertyAmenityDto } from './dto/add-property-amenity.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.type';
 
 @Controller('properties')
@@ -25,6 +27,8 @@ export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) {}
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
   create(
     @Body() createPropertyDto: CreatePropertyDto,
     @CurrentUser() currentUser: JwtPayload,
@@ -96,6 +100,8 @@ export class PropertiesController {
   }
 
   @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updatePropertyDto: UpdatePropertyDto,
@@ -105,6 +111,8 @@ export class PropertiesController {
   }
 
   @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
   remove(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: JwtPayload,
