@@ -10,13 +10,14 @@ datasource db {
 }
 
 model Tenant {
-  id         Int        @id @default(autoincrement())
-  name       String
-  users      User[]
-  properties Property[]
-  bookings   Booking[]
-  reviews    Review[]
-  createdAt  DateTime   @default(now())
+  id            Int            @id @default(autoincrement())
+  name          String
+  users         User[]
+  properties    Property[]
+  bookings      Booking[]
+  reviews       Review[]
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
 }
 
 model Role {
@@ -40,6 +41,8 @@ model User {
   reviews       Review[]
   messages      ChatMessage[]
   refreshTokens RefreshToken[]
+  favorites     FavoriteProperty[]
+  notifications Notification[]
 
   createdAt  DateTime   @default(now())
   properties Property[]
@@ -64,6 +67,7 @@ model Property {
   bookings     Booking[]
   reviews      Review[]
   availability Availability[]
+  favoritedBy  FavoriteProperty[]
 
   categoryId Int?
   category   Category? @relation(fields: [categoryId], references: [id])
@@ -87,8 +91,11 @@ model Booking {
   tenantId Int
   tenant   Tenant @relation(fields: [tenantId], references: [id])
 
-  payments  Payment[]
-  createdAt DateTime  @default(now())
+  payments      Payment[]
+  guests        BookingGuest[]
+  notifications Notification[]
+  invoice       Invoice?
+  createdAt     DateTime       @default(now())
 }
 
 model Review {
@@ -140,7 +147,84 @@ model Payment {
   bookingId Int
   booking   Booking @relation(fields: [bookingId], references: [id])
 
+  invoice   Invoice?
   createdAt DateTime @default(now())
+}
+
+model FavoriteProperty {
+  id Int @id @default(autoincrement())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  propertyId Int
+  property   Property @relation(fields: [propertyId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, propertyId])
+  @@index([propertyId])
+}
+
+model Notification {
+  id      Int     @id @default(autoincrement())
+  title   String
+  message String
+  type    String
+  readAt  DateTime?
+
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id])
+
+  tenantId Int?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  bookingId Int?
+  booking   Booking? @relation(fields: [bookingId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tenantId])
+  @@index([bookingId])
+}
+
+model Invoice {
+  id            Int       @id @default(autoincrement())
+  invoiceNumber String    @unique
+  status        String
+  subtotal      Float
+  taxAmount     Float     @default(0)
+  totalAmount   Float
+  billingName   String?
+  billingEmail  String?
+  issuedAt      DateTime  @default(now())
+  dueAt         DateTime?
+  paidAt        DateTime?
+
+  bookingId Int     @unique
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  paymentId Int?     @unique
+  payment   Payment? @relation(fields: [paymentId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model BookingGuest {
+  id        Int     @id @default(autoincrement())
+  firstName String
+  lastName  String
+  email     String?
+  phone     String?
+  age       Int?
+
+  bookingId Int
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([bookingId])
 }
 
 model Category {

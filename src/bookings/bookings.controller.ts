@@ -9,6 +9,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
@@ -19,10 +20,13 @@ import type { JwtPayload } from '../auth/jwt-payload.type';
 
 @Controller('bookings')
 @UseGuards(JwtAuthGuard, TenantGuard)
+@ApiTags('Bookings')
+@ApiBearerAuth()
 export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
   @Post()
+  @ApiOperation({ summary: 'Create a booking for the authenticated user' })
   create(
     @Body() createBookingDto: CreateBookingDto,
     @CurrentUser() currentUser: JwtPayload,
@@ -31,11 +35,13 @@ export class BookingsController {
   }
 
   @Get()
+  @ApiOperation({ summary: 'List tenant bookings, scoped by role' })
   findAll(@CurrentUser() currentUser: JwtPayload) {
     return this.bookingsService.findAll(currentUser);
   }
 
   @Get('user/:userId')
+  @ApiOperation({ summary: 'List bookings for a user' })
   findByUser(
     @Param('userId', ParseIntPipe) userId: number,
     @CurrentUser() currentUser: JwtPayload,
@@ -44,6 +50,7 @@ export class BookingsController {
   }
 
   @Get(':id')
+  @ApiOperation({ summary: 'Get one booking by ID' })
   findOne(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: JwtPayload,
@@ -52,6 +59,7 @@ export class BookingsController {
   }
 
   @Patch(':id')
+  @ApiOperation({ summary: 'Update a booking' })
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateBookingDto: UpdateBookingDto,
@@ -61,6 +69,7 @@ export class BookingsController {
   }
 
   @Patch(':id/cancel')
+  @ApiOperation({ summary: 'Cancel a booking' })
   cancel(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: JwtPayload,
@@ -69,6 +78,7 @@ export class BookingsController {
   }
 
   @Patch(':id/confirm')
+  @ApiOperation({ summary: 'Confirm a booking' })
   confirm(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: JwtPayload,
@@ -77,6 +87,7 @@ export class BookingsController {
   }
 
   @Delete(':id')
+  @ApiOperation({ summary: 'Delete a booking' })
   remove(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: JwtPayload,

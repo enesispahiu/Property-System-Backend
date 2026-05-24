@@ -23,6 +23,7 @@ export class SearchService {
     maxPrice?: string;
     rating?: string;
     categoryId?: string;
+    propertyType?: string;
     page?: string;
     limit?: string;
     sort?: string;
@@ -76,6 +77,15 @@ export class SearchService {
       where.categoryId = Number(query.categoryId);
     }
 
+    if (query.propertyType) {
+      where.category = {
+        name: {
+          contains: query.propertyType,
+          mode: 'insensitive',
+        },
+      };
+    }
+
     let orderBy: any = {
       createdAt: 'desc',
     };
@@ -96,6 +106,7 @@ export class SearchService {
       where,
       orderBy,
       include: {
+        category: true,
         reviews: true,
       },
     });
