@@ -81,6 +81,20 @@ export class ReviewsService {
         propertyId: dto.propertyId,
         tenantId: property.tenantId,
       },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+        property: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+      },
     });
   }
 
@@ -91,6 +105,20 @@ export class ReviewsService {
       where: {
         propertyId,
         tenantId: currentUser.tenantId,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+        property: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',

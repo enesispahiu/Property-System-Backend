@@ -35,6 +35,8 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
   @ApiOperation({ summary: 'Get all users (tenant-aware)' })
   @ApiOkResponse({
     schema: {

@@ -130,7 +130,10 @@ export class BookingsService {
 
   findAll(currentUser: JwtPayload) {
     return this.prisma.booking.findMany({
-      where: { tenantId: currentUser.tenantId },
+      where: {
+        tenantId: currentUser.tenantId,
+        ...(currentUser.role === 'ADMIN' ? {} : { userId: currentUser.sub }),
+      },
       include: {
         user: true,
         property: true,
@@ -159,6 +162,10 @@ export class BookingsService {
       throw new NotFoundException(`Booking with id ${id} not found`);
     }
 
+    if (currentUser.role !== 'ADMIN' && booking.userId !== currentUser.sub) {
+      throw new ForbiddenException('You cannot access this booking');
+    }
+
     return booking;
   }
 
@@ -169,6 +176,10 @@ export class BookingsService {
 
     if (!user || user.tenantId !== currentUser.tenantId) {
       throw new NotFoundException(`User with id ${userId} not found`);
+    }
+
+    if (currentUser.role !== 'ADMIN' && userId !== currentUser.sub) {
+      throw new ForbiddenException('You cannot access bookings for this user');
     }
 
     return this.prisma.booking.findMany({
@@ -192,6 +203,13 @@ export class BookingsService {
     currentUser: JwtPayload,
   ) {
     const existingBooking = await this.verifyTenantBooking(id, currentUser);
+
+    if (
+      currentUser.role !== 'ADMIN' &&
+      existingBooking.userId !== currentUser.sub
+    ) {
+      throw new ForbiddenException('You cannot update this booking');
+    }
 
     const startDate = updateBookingDto.startDate
       ? new Date(updateBookingDto.startDate)
@@ -281,7 +299,11 @@ export class BookingsService {
   }
 
   async cancel(id: number, currentUser: JwtPayload) {
-    await this.verifyTenantBooking(id, currentUser);
+    const booking = await this.verifyTenantBooking(id, currentUser);
+
+    if (currentUser.role !== 'ADMIN' && booking.userId !== currentUser.sub) {
+      throw new ForbiddenException('You cannot cancel this booking');
+    }
 
     return this.prisma.booking.update({
       where: { id },
@@ -292,7 +314,11 @@ export class BookingsService {
   }
 
   async confirm(id: number, currentUser: JwtPayload) {
-    await this.verifyTenantBooking(id, currentUser);
+    const booking = await this.verifyTenantBooking(id, currentUser);
+
+    if (currentUser.role !== 'ADMIN' && booking.userId !== currentUser.sub) {
+      throw new ForbiddenException('You cannot confirm this booking');
+    }
 
     return this.prisma.booking.update({
       where: { id },
@@ -303,7 +329,11 @@ export class BookingsService {
   }
 
   async remove(id: number, currentUser: JwtPayload) {
-    await this.verifyTenantBooking(id, currentUser);
+    const booking = await this.verifyTenantBooking(id, currentUser);
+
+    if (currentUser.role !== 'ADMIN' && booking.userId !== currentUser.sub) {
+      throw new ForbiddenException('You cannot delete this booking');
+    }
 
     return this.prisma.booking.delete({
       where: { id },
