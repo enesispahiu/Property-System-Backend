@@ -49,7 +49,9 @@ export class SearchService {
     const limit = Number(query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = {
+      status: 'ACTIVE',
+    };
 
     if (query.location) {
       where.location = {
