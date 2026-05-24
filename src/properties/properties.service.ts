@@ -70,7 +70,7 @@ export class PropertiesService {
     });
   }
 
-  async findOne(id: number, currentUser: JwtPayload) {
+  async findOne(id: number, currentUser?: JwtPayload) {
     const property = await this.prisma.property.findUnique({
       where: { id },
       include: this.propertySelection,
@@ -78,7 +78,7 @@ export class PropertiesService {
 
     if (
       !property ||
-      (property.tenantId !== currentUser.tenantId &&
+      ((!currentUser || property.tenantId !== currentUser.tenantId) &&
         property.status !== 'ACTIVE')
     ) {
       throw new NotFoundException(`Property with id ${id} not found`);

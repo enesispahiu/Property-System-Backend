@@ -9,6 +9,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PropertiesService } from './properties.service';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
@@ -22,13 +23,15 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.type';
 
 @Controller('properties')
-@UseGuards(JwtAuthGuard, TenantGuard)
+@ApiTags('Properties')
 export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) {}
 
   @Post()
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
   @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a property for the current tenant' })
   create(
     @Body() createPropertyDto: CreatePropertyDto,
     @CurrentUser() currentUser: JwtPayload,
@@ -37,11 +40,17 @@ export class PropertiesController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List properties for the current tenant' })
   findAll(@CurrentUser() currentUser: JwtPayload) {
     return this.propertiesService.findAll(currentUser);
   }
 
   @Post(':id/images')
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Add an image to a tenant property' })
   addImage(
     @Param('id', ParseIntPipe) id: number,
     @Body() createPropertyImageDto: CreatePropertyImageDto,
@@ -51,6 +60,9 @@ export class PropertiesController {
   }
 
   @Get(':id/images')
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List images for a tenant property' })
   getImages(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: JwtPayload,
@@ -59,6 +71,9 @@ export class PropertiesController {
   }
 
   @Delete('images/:imageId')
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove an image from a tenant property' })
   removeImage(
     @Param('imageId', ParseIntPipe) imageId: number,
     @CurrentUser() currentUser: JwtPayload,
@@ -67,6 +82,9 @@ export class PropertiesController {
   }
 
   @Post(':id/amenities')
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Add an amenity to a tenant property' })
   addAmenity(
     @Param('id', ParseIntPipe) id: number,
     @Body() addPropertyAmenityDto: AddPropertyAmenityDto,
@@ -76,6 +94,9 @@ export class PropertiesController {
   }
 
   @Get(':id/amenities')
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List amenities for a tenant property' })
   getAmenities(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: JwtPayload,
@@ -84,6 +105,9 @@ export class PropertiesController {
   }
 
   @Delete('amenities/:propertyAmenityId')
+  @UseGuards(JwtAuthGuard, TenantGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove an amenity from a tenant property' })
   removeAmenity(
     @Param('propertyAmenityId', ParseIntPipe) propertyAmenityId: number,
     @CurrentUser() currentUser: JwtPayload,
@@ -92,16 +116,16 @@ export class PropertiesController {
   }
 
   @Get(':id')
-  findOne(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() currentUser: JwtPayload,
-  ) {
-    return this.propertiesService.findOne(id, currentUser);
+  @ApiOperation({ summary: 'Get public details for an active property' })
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.propertiesService.findOne(id);
   }
 
   @Patch(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
   @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update a property in the current tenant' })
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updatePropertyDto: UpdatePropertyDto,
@@ -111,8 +135,10 @@ export class PropertiesController {
   }
 
   @Delete(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
   @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a property in the current tenant' })
   remove(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: JwtPayload,

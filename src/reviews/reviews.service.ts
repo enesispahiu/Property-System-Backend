@@ -98,7 +98,7 @@ export class ReviewsService {
     });
   }
 
-  async getPropertyReviews(propertyId: number, currentUser: JwtPayload) {
+  async getPropertyReviews(propertyId: number) {
     await this.verifyActiveProperty(propertyId);
 
     return this.prisma.review.findMany({
@@ -125,7 +125,7 @@ export class ReviewsService {
     });
   }
 
-  async getAverageRating(propertyId: number, currentUser: JwtPayload) {
+  async getAverageRating(propertyId: number) {
     await this.verifyActiveProperty(propertyId);
 
     const result = await this.prisma.review.aggregate({
