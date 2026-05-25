@@ -49,8 +49,8 @@ describe('ReviewsService', () => {
       sub: 26,
       email: 'reviewer@example.com',
       roleId: 3,
-      role: 'TENANT',
-      tenantId: 20,
+      role: 'USER',
+      tenantId: null,
     };
 
     it('creates a review for an active property from another tenant', async () => {
@@ -161,8 +161,8 @@ describe('ReviewsService', () => {
           sub: 26,
           email: 'reviewer@example.com',
           roleId: 3,
-          role: 'TENANT',
-          tenantId: 20,
+          role: 'USER',
+          tenantId: null,
         }),
       ).resolves.toEqual([]);
 

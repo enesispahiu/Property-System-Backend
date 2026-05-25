@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../auth/jwt-payload.type';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
+import { Roles } from '../auth/roles';
 
 @Injectable()
 export class UsersService {
@@ -65,7 +66,7 @@ export class UsersService {
       throw new ForbiddenException('You cannot update users from other tenants');
     }
 
-    if (currentUser.role !== 'ADMIN' && id !== currentUser.sub) {
+    if (currentUser.role !== Roles.TENANT_ADMIN && id !== currentUser.sub) {
       throw new ForbiddenException('You can only update your own profile');
     }
 
@@ -92,7 +93,7 @@ export class UsersService {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
 
-    if (currentUser.role !== 'ADMIN') {
+    if (currentUser.role !== Roles.TENANT_ADMIN) {
       throw new ForbiddenException('Only admins can delete users');
     }
 
@@ -128,7 +129,7 @@ export class UsersService {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
 
-    if (currentUser.role !== 'ADMIN') {
+    if (currentUser.role !== Roles.TENANT_ADMIN) {
       throw new ForbiddenException('Only admins can change user roles');
     }
 

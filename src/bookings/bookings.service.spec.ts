@@ -86,7 +86,7 @@ describe('BookingsService', () => {
       });
     });
 
-    it('allows admins to fetch bookings for another user', async () => {
+    it('allows tenant admins to fetch bookings for another user in their tenant', async () => {
       prisma.booking.findMany.mockResolvedValue([]);
 
       await expect(
@@ -94,7 +94,7 @@ describe('BookingsService', () => {
           sub: 1,
           email: 'admin@example.com',
           roleId: 3,
-          role: 'ADMIN',
+          role: 'TENANT_ADMIN',
           tenantId: 19,
         }),
       ).resolves.toEqual([]);

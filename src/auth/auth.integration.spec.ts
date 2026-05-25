@@ -13,7 +13,7 @@ import { RolesGuard } from './guards/roles.guard';
 @Controller('guard-test')
 class GuardTestController {
   @Get('admin')
-  @Roles('ADMIN')
+  @Roles('TENANT_ADMIN')
   @UseGuards(JwtAuthGuard, RolesGuard)
   adminOnly() {
     return { ok: true };
@@ -85,13 +85,13 @@ describe('Auth endpoints (integration)', () => {
   it('registers and returns verifiable access and refresh tokens', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
     prisma.tenant.create.mockResolvedValue({ id: 1, name: 'Acme' });
-    prisma.role.findFirst.mockResolvedValue({ id: 1, name: 'TENANT' });
+    prisma.role.findUnique.mockResolvedValue({ id: 1, name: 'USER' });
     prisma.user.create.mockResolvedValue({
       id: 1,
       email: 'tenant@example.com',
       password: 'hashed',
       tenantId: 1,
-      role: { name: 'TENANT' },
+      role: { name: 'USER' },
     });
     prisma.refreshToken.create.mockResolvedValue({});
 
@@ -111,17 +111,17 @@ describe('Auth endpoints (integration)', () => {
       jwtService.verifyAsync(response.body.accessToken, {
         secret: 'test-access-secret',
       }),
-    ).resolves.toMatchObject({ sub: 1, role: 'TENANT', tenantId: 1 });
+    ).resolves.toMatchObject({ sub: 1, role: 'USER', tenantId: 1 });
     await expect(
       jwtService.verifyAsync(response.body.refreshToken, {
         secret: 'test-refresh-secret',
       }),
-    ).resolves.toMatchObject({ sub: 1, role: 'TENANT', tenantId: 1 });
+    ).resolves.toMatchObject({ sub: 1, role: 'USER', tenantId: 1 });
   });
 
   it('returns the current user from a bearer access token', async () => {
     const accessToken = await jwtService.signAsync(
-      { sub: 7, email: 'admin@example.com', role: 'ADMIN', tenantId: 2 },
+      { sub: 7, email: 'admin@example.com', role: 'TENANT_ADMIN', tenantId: 2 },
       { secret: 'test-access-secret', expiresIn: '15m' },
     );
 
@@ -132,18 +132,18 @@ describe('Auth endpoints (integration)', () => {
       .expect({
         id: 7,
         email: 'admin@example.com',
-        role: 'ADMIN',
+        role: 'TENANT_ADMIN',
         tenantId: 2,
       });
   });
 
   it('enforces role-based guards', async () => {
     const tenantToken = await jwtService.signAsync(
-      { sub: 8, email: 'tenant@example.com', role: 'TENANT', tenantId: 1 },
+      { sub: 8, email: 'tenant@example.com', role: 'USER', tenantId: 1 },
       { secret: 'test-access-secret', expiresIn: '15m' },
     );
     const adminToken = await jwtService.signAsync(
-      { sub: 9, email: 'admin@example.com', role: 'ADMIN', tenantId: 1 },
+      { sub: 9, email: 'admin@example.com', role: 'TENANT_ADMIN', tenantId: 1 },
       { secret: 'test-access-secret', expiresIn: '15m' },
     );
 

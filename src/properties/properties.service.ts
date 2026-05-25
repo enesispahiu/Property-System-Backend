@@ -10,6 +10,7 @@ import { UpdatePropertyDto } from './dto/update-property.dto';
 import { CreatePropertyImageDto } from './dto/create-property-image.dto';
 import { AddPropertyAmenityDto } from './dto/add-property-amenity.dto';
 import { JwtPayload } from '../auth/jwt-payload.type';
+import { Roles } from '../auth/roles';
 
 @Injectable()
 export class PropertiesService {
@@ -26,11 +27,31 @@ export class PropertiesService {
     availability: true,
   };
 
+  private requireTenantId(currentUser: JwtPayload) {
+    if (!currentUser.tenantId) {
+      throw new ForbiddenException('Tenant information is required');
+    }
+
+    return currentUser.tenantId;
+  }
+
   private async verifyTenantProperty(id: number, currentUser: JwtPayload) {
+    if (currentUser.role === Roles.SUPER_ADMIN) {
+      const property = await this.prisma.property.findUnique({ where: { id } });
+
+      if (!property) {
+        throw new NotFoundException(`Property with id ${id} not found`);
+      }
+
+      return property;
+    }
+
+    const tenantId = this.requireTenantId(currentUser);
+
     const property = await this.prisma.property.findFirst({
       where: {
         id,
-        tenantId: currentUser.tenantId,
+        tenantId,
       },
     });
 
@@ -42,25 +63,75 @@ export class PropertiesService {
   }
 
   async create(createPropertyDto: CreatePropertyDto, currentUser: JwtPayload) {
-    const ownerId = createPropertyDto.ownerId || currentUser.sub;
+    let tenantId = currentUser.tenantId;
+
+    if (currentUser.role === Roles.SUPER_ADMIN) {
+      if (!createPropertyDto.tenantId) {
+        throw new BadRequestException(
+          'tenantId is required when SUPER_ADMIN creates a property',
+        );
+      }
+
+      tenantId = createPropertyDto.tenantId;
+    }
+
+    if (!tenantId) {
+      throw new ForbiddenException('Tenant information is required');
+    }
+
+    const ownerId =
+      currentUser.role === Roles.SUPER_ADMIN
+        ? createPropertyDto.ownerId
+        : currentUser.sub;
+
+    if (!ownerId) {
+      throw new BadRequestException(
+        'ownerId is required when SUPER_ADMIN creates a property',
+      );
+    }
+
     const owner = await this.prisma.user.findUnique({
       where: { id: ownerId },
     });
 
-    if (!owner || owner.tenantId !== currentUser.tenantId) {
+    if (!owner || owner.tenantId !== tenantId) {
       throw new ForbiddenException('Owner must belong to the current tenant');
     }
 
     return this.prisma.property.create({
       data: {
-        ...createPropertyDto,
-        tenantId: currentUser.tenantId,
+        title: createPropertyDto.title,
+        description: createPropertyDto.description,
+        price: createPropertyDto.price,
+        location: createPropertyDto.location,
+        status: createPropertyDto.status,
+        categoryId: createPropertyDto.categoryId,
+        tenantId,
         ownerId,
       },
     });
   }
 
   findAll(currentUser: JwtPayload) {
+    if (currentUser.role === Roles.SUPER_ADMIN) {
+      return this.prisma.property.findMany({
+        include: this.propertySelection,
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+    }
+
+    if (!currentUser.tenantId) {
+      return this.prisma.property.findMany({
+        where: { status: 'ACTIVE' },
+        include: this.propertySelection,
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+    }
+
     return this.prisma.property.findMany({
       where: { tenantId: currentUser.tenantId },
       include: this.propertySelection,
@@ -94,9 +165,12 @@ export class PropertiesService {
   ) {
     await this.verifyTenantProperty(id, currentUser);
 
+    const data = { ...updatePropertyDto };
+    delete data.tenantId;
+
     return this.prisma.property.update({
       where: { id },
-      data: updatePropertyDto,
+      data,
     });
   }
 
@@ -122,7 +196,9 @@ export class PropertiesService {
       where: {
         property: {
           id,
-          tenantId: currentUser.tenantId,
+          ...(currentUser.role === Roles.SUPER_ADMIN
+            ? {}
+            : { tenantId: this.requireTenantId(currentUser) }),
         },
       },
     });
@@ -136,7 +212,11 @@ export class PropertiesService {
       },
     });
 
-    if (!image || image.property.tenantId !== currentUser.tenantId) {
+    if (
+      !image ||
+      (currentUser.role !== Roles.SUPER_ADMIN &&
+        image.property.tenantId !== currentUser.tenantId)
+    ) {
       throw new NotFoundException(`Property image with id ${imageId} not found`);
     }
 
@@ -212,7 +292,11 @@ export class PropertiesService {
       },
     });
 
-    if (!propertyAmenity || propertyAmenity.property.tenantId !== currentUser.tenantId) {
+    if (
+      !propertyAmenity ||
+      (currentUser.role !== Roles.SUPER_ADMIN &&
+        propertyAmenity.property.tenantId !== currentUser.tenantId)
+    ) {
       throw new NotFoundException(
         `Property amenity with id ${propertyAmenityId} not found`,
       );

@@ -18,11 +18,13 @@ export class CreatePropertyDto {
   @IsString()
   status?: string;
 
+  @IsOptional()
   @IsInt()
-  tenantId!: number;
+  tenantId?: number;
 
+  @IsOptional()
   @IsInt()
-  ownerId!: number;
+  ownerId?: number;
 
   @IsOptional()
   @IsInt()
