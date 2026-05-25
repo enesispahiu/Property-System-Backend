@@ -12,6 +12,10 @@ datasource db {
 model Tenant {
   id            Int            @id @default(autoincrement())
   name          String
+  slug          String         @unique
+  domain        String?
+  logoUrl       String?
+  primaryColor  String?
   users         User[]
   properties    Property[]
   bookings      Booking[]
@@ -22,7 +26,7 @@ model Tenant {
 
 model Role {
   id    Int    @id @default(autoincrement())
-  name  String
+  name  String @unique
   users User[]
 }
 
@@ -34,8 +38,8 @@ model User {
   roleId Int
   role   Role @relation(fields: [roleId], references: [id])
 
-  tenantId Int
-  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId Int?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
   bookings      Booking[]
   reviews       Review[]

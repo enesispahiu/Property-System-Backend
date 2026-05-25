@@ -21,6 +21,7 @@ import { TenantGuard } from '../common/guards/tenant.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.type';
+import { Roles as AppRoles } from '../auth/roles';
 
 @Controller('properties')
 @ApiTags('Properties')
@@ -29,7 +30,7 @@ export class PropertiesController {
 
   @Post()
   @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles(AppRoles.TENANT_ADMIN, AppRoles.SUPER_ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a property for the current tenant' })
   create(
@@ -40,9 +41,9 @@ export class PropertiesController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard, TenantGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'List properties for the current tenant' })
+  @ApiOperation({ summary: 'List properties scoped by role' })
   findAll(@CurrentUser() currentUser: JwtPayload) {
     return this.propertiesService.findAll(currentUser);
   }
@@ -123,7 +124,7 @@ export class PropertiesController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles(AppRoles.TENANT_ADMIN, AppRoles.SUPER_ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a property in the current tenant' })
   update(
@@ -136,7 +137,7 @@ export class PropertiesController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles(AppRoles.TENANT_ADMIN, AppRoles.SUPER_ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete a property in the current tenant' })
   remove(

@@ -15,6 +15,7 @@ import { AiModule } from './ai/ai.module';
 import { PropertiesModule } from './properties/properties.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { UsersModule } from './users/users.module';
+import { PlatformModule } from './platform/platform.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { UsersModule } from './users/users.module';
     PropertiesModule,
     BookingsModule,
     UsersModule,
+    PlatformModule,
   ],
   controllers: [AppController],
   providers: [

@@ -14,12 +14,11 @@ import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { TenantGuard } from '../common/guards/tenant.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/jwt-payload.type';
 
 @Controller('bookings')
-@UseGuards(JwtAuthGuard, TenantGuard)
+@UseGuards(JwtAuthGuard)
 @ApiTags('Bookings')
 @ApiBearerAuth()
 export class BookingsController {

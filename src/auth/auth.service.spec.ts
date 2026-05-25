@@ -57,13 +57,13 @@ describe('AuthService', () => {
   it('registers a user, hashes password, and stores a refresh token', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
     prisma.tenant.create.mockResolvedValue({ id: 10, name: 'Acme' });
-    prisma.role.findFirst.mockResolvedValue({ id: 2, name: 'TENANT' });
+    prisma.role.findUnique.mockResolvedValue({ id: 2, name: 'USER' });
     prisma.user.create.mockResolvedValue({
       id: 1,
       email: 'new@example.com',
       password: 'hashed',
       tenantId: 10,
-      role: { name: 'TENANT' },
+      role: { name: 'USER' },
     });
     prisma.refreshToken.create.mockResolvedValue({});
 
@@ -78,7 +78,7 @@ describe('AuthService', () => {
     expect(result.user).toEqual({
       id: 1,
       email: 'new@example.com',
-      role: 'TENANT',
+      role: 'USER',
       tenantId: 10,
     });
     expect(prisma.user.create.mock.calls[0][0].data.password).not.toBe(
@@ -100,7 +100,7 @@ describe('AuthService', () => {
       email: 'user@example.com',
       password,
       tenantId: 3,
-      role: { name: 'ADMIN' },
+      role: { name: 'TENANT_ADMIN' },
     });
     prisma.refreshToken.create.mockResolvedValue({});
 
@@ -116,13 +116,13 @@ describe('AuthService', () => {
       secret: 'test-refresh-secret',
     });
 
-    expect(accessPayload).toMatchObject({ sub: 1, role: 'ADMIN', tenantId: 3 });
-    expect(refreshPayload).toMatchObject({ sub: 1, role: 'ADMIN', tenantId: 3 });
+    expect(accessPayload).toMatchObject({ sub: 1, role: 'TENANT_ADMIN', tenantId: 3 });
+    expect(refreshPayload).toMatchObject({ sub: 1, role: 'TENANT_ADMIN', tenantId: 3 });
   });
 
   it('rotates a valid refresh token', async () => {
     const refreshToken = await jwtService.signAsync(
-      { sub: 1, email: 'user@example.com', role: 'TENANT', tenantId: 3 },
+      { sub: 1, email: 'user@example.com', role: 'USER', tenantId: 3 },
       { secret: 'test-refresh-secret', expiresIn: '7d' },
     );
     prisma.refreshToken.findUnique.mockResolvedValue({
@@ -135,7 +135,7 @@ describe('AuthService', () => {
       email: 'user@example.com',
       password: 'hashed',
       tenantId: 3,
-      role: { name: 'TENANT' },
+      role: { name: 'USER' },
     });
     prisma.refreshToken.delete.mockResolvedValue({});
     prisma.refreshToken.create.mockResolvedValue({});

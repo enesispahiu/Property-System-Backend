@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { JwtPayload } from '../auth/jwt-payload.type';
+import { Roles } from '../auth/roles';
 
 @Injectable()
 export class ReviewsService {
@@ -29,6 +30,35 @@ export class ReviewsService {
   }
 
   private async verifyReviewTenant(id: number, currentUser: JwtPayload) {
+    if (currentUser.role === Roles.SUPER_ADMIN) {
+      const review = await this.prisma.review.findUnique({ where: { id } });
+
+      if (!review) {
+        throw new NotFoundException('Review not found');
+      }
+
+      return review;
+    }
+
+    if (currentUser.role === Roles.USER) {
+      const review = await this.prisma.review.findFirst({
+        where: {
+          id,
+          userId: currentUser.sub,
+        },
+      });
+
+      if (!review) {
+        throw new NotFoundException('Review not found');
+      }
+
+      return review;
+    }
+
+    if (!currentUser.tenantId) {
+      throw new ForbiddenException('Tenant information is required');
+    }
+
     const review = await this.prisma.review.findFirst({
       where: {
         id,
@@ -58,7 +88,7 @@ export class ReviewsService {
       where: { id: currentUser.sub },
     });
 
-    if (!user || user.tenantId !== currentUser.tenantId) {
+    if (!user) {
       throw new NotFoundException('User not found');
     }
 
@@ -155,7 +185,9 @@ export class ReviewsService {
     const review = await this.verifyReviewTenant(id, currentUser);
 
     const isOwner = review.userId === currentUser.sub;
-    const isAdmin = currentUser.role === 'ADMIN';
+    const isAdmin =
+      currentUser.role === Roles.TENANT_ADMIN ||
+      currentUser.role === Roles.SUPER_ADMIN;
 
     if (!isOwner && !isAdmin) {
       throw new ForbiddenException('You are not allowed to update this review');
@@ -181,7 +213,9 @@ export class ReviewsService {
     const review = await this.verifyReviewTenant(id, currentUser);
 
     const isOwner = review.userId === currentUser.sub;
-    const isAdmin = currentUser.role === 'ADMIN';
+    const isAdmin =
+      currentUser.role === Roles.TENANT_ADMIN ||
+      currentUser.role === Roles.SUPER_ADMIN;
 
     if (!isOwner && !isAdmin) {
       throw new ForbiddenException('You are not allowed to delete this review');

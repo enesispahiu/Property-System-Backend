@@ -3,5 +3,5 @@ export type JwtPayload = {
   email: string;
   roleId: number;
   role: string;
-  tenantId: number;
+  tenantId: number | null;
 };

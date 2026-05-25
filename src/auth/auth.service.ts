@@ -12,12 +12,13 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
 import { JwtPayload } from './jwt-payload.type';
+import { Roles } from './roles';
 
 type UserWithRole = {
   id: number;
   email: string;
   password: string;
-  tenantId: number;
+  tenantId: number | null;
   roleId: number;
   role: { id: number; name: string };
 };
@@ -41,10 +42,6 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
-    if (!dto.tenantId && !dto.tenantName) {
-      throw new BadRequestException('tenantId or tenantName is required');
-    }
-
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -53,20 +50,55 @@ export class AuthService {
       throw new ConflictException('Email is already registered');
     }
 
-    const tenant = dto.tenantId
-      ? await this.prisma.tenant.findUnique({ where: { id: dto.tenantId } })
-      : await this.prisma.tenant.create({ data: { name: dto.tenantName! } });
-
-    if (!tenant) {
-      throw new BadRequestException('Tenant not found');
-    }
-
     const role = dto.roleId
       ? await this.prisma.role.findUnique({ where: { id: dto.roleId } })
-      : await this.prisma.role.findFirst({ where: { name: 'TENANT' } });
+      : ((await this.prisma.role.findUnique({ where: { name: Roles.USER } })) ??
+        (await this.prisma.role.findFirst({ where: { name: Roles.USER } })));
 
     const resolvedRole =
-      role ?? (await this.prisma.role.create({ data: { name: 'TENANT' } }));
+      role ?? (await this.prisma.role.create({ data: { name: Roles.USER } }));
+
+    let tenantId: number | null = null;
+
+    if (resolvedRole.name === Roles.TENANT_ADMIN) {
+      if (!dto.tenantId && !dto.tenantName) {
+        throw new BadRequestException(
+          'tenantId or tenantName is required for tenant admins',
+        );
+      }
+
+      const tenant = dto.tenantId
+        ? await this.prisma.tenant.findUnique({ where: { id: dto.tenantId } })
+        : await this.prisma.tenant.create({
+            data: {
+              name: dto.tenantName!,
+              slug: this.slugify(dto.tenantName!),
+            },
+          });
+
+      if (!tenant) {
+        throw new BadRequestException('Tenant not found');
+      }
+
+      tenantId = tenant.id;
+    } else if (dto.tenantId || dto.tenantName) {
+      const tenant = dto.tenantId
+        ? await this.prisma.tenant.findUnique({
+            where: { id: dto.tenantId },
+          })
+        : await this.prisma.tenant.create({
+            data: {
+              name: dto.tenantName!,
+              slug: this.slugify(dto.tenantName!),
+            },
+          });
+
+      if (!tenant) {
+        throw new BadRequestException('Tenant not found');
+      }
+
+      tenantId = tenant.id;
+    }
 
     const password = await bcrypt.hash(dto.password, 12);
 
@@ -74,7 +106,7 @@ export class AuthService {
       data: {
         email: dto.email,
         password,
-        tenantId: tenant.id,
+        tenantId,
         roleId: resolvedRole.id,
       },
       include: { role: true },
@@ -188,5 +220,13 @@ export class AuthService {
         tenantId: user.tenantId,
       },
     };
+  }
+
+  private slugify(value: string) {
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
   }
 }

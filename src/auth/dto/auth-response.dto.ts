@@ -10,11 +10,11 @@ export class AuthUserDto {
   @ApiProperty({ example: 1 })
   roleId: number;
 
-  @ApiProperty({ example: 'TENANT' })
+  @ApiProperty({ example: 'USER' })
   role: string;
 
-  @ApiProperty({ example: 1 })
-  tenantId: number;
+  @ApiProperty({ example: 1, nullable: true })
+  tenantId: number | null;
 }
 
 export class AuthResponseDto {

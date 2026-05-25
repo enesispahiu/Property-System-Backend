@@ -26,6 +26,7 @@ import { TenantGuard } from '../common/guards/tenant.guard';
 import type { JwtPayload } from '../auth/jwt-payload.type';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
+import { Roles as AppRoles } from '../auth/roles';
 
 @ApiTags('Users')
 @Controller('users')
@@ -36,7 +37,7 @@ export class UsersController {
 
   @Get()
   @UseGuards(RolesGuard)
-  @Roles('ADMIN')
+  @Roles(AppRoles.TENANT_ADMIN)
   @ApiOperation({ summary: 'Get all users (tenant-aware)' })
   @ApiOkResponse({
     schema: {
@@ -46,7 +47,7 @@ export class UsersController {
           email: 'user@example.com',
           tenantId: 1,
           roleId: 2,
-          role: { name: 'TENANT' },
+          role: { name: 'USER' },
           createdAt: '2026-05-22T20:00:00Z',
         },
       ],
@@ -65,7 +66,7 @@ export class UsersController {
         email: 'user@example.com',
         tenantId: 1,
         roleId: 2,
-        role: { name: 'TENANT' },
+        role: { name: 'USER' },
         createdAt: '2026-05-22T20:00:00Z',
       },
     },
@@ -88,7 +89,7 @@ export class UsersController {
         email: 'newemail@example.com',
         tenantId: 1,
         roleId: 2,
-        role: { name: 'TENANT' },
+        role: { name: 'USER' },
         createdAt: '2026-05-22T20:00:00Z',
       },
     },
@@ -105,7 +106,7 @@ export class UsersController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles('ADMIN')
+  @Roles(AppRoles.TENANT_ADMIN)
   @ApiOperation({ summary: 'Delete user (admin only)' })
   @ApiOkResponse({
     schema: {
@@ -128,7 +129,7 @@ export class UsersController {
 
   @Patch(':id/role')
   @UseGuards(RolesGuard)
-  @Roles('ADMIN')
+  @Roles(AppRoles.TENANT_ADMIN)
   @ApiOperation({ summary: 'Update user role (admin only)' })
   @ApiOkResponse({
     schema: {
@@ -137,7 +138,7 @@ export class UsersController {
         email: 'user@example.com',
         tenantId: 1,
         roleId: 3,
-        role: { name: 'ADMIN' },
+        role: { name: 'TENANT_ADMIN' },
         createdAt: '2026-05-22T20:00:00Z',
       },
     },

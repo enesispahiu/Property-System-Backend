@@ -8,10 +8,19 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { JwtPayload } from '../auth/jwt-payload.type';
+import { Roles } from '../auth/roles';
 
 @Injectable()
 export class BookingsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private requireTenantId(currentUser: JwtPayload) {
+    if (!currentUser.tenantId) {
+      throw new ForbiddenException('Tenant information is required');
+    }
+
+    return currentUser.tenantId;
+  }
 
   private calculateTotalPrice(
     startDate: Date,
@@ -27,10 +36,49 @@ export class BookingsService {
   }
 
   private async verifyTenantBooking(id: number, currentUser: JwtPayload) {
+    if (currentUser.role === Roles.SUPER_ADMIN) {
+      const booking = await this.prisma.booking.findUnique({
+        where: { id },
+        include: {
+          user: true,
+          property: true,
+          payments: true,
+        },
+      });
+
+      if (!booking) {
+        throw new NotFoundException(`Booking with id ${id} not found`);
+      }
+
+      return booking;
+    }
+
+    if (currentUser.role === Roles.USER) {
+      const booking = await this.prisma.booking.findFirst({
+        where: {
+          id,
+          userId: currentUser.sub,
+        },
+        include: {
+          user: true,
+          property: true,
+          payments: true,
+        },
+      });
+
+      if (!booking) {
+        throw new NotFoundException(`Booking with id ${id} not found`);
+      }
+
+      return booking;
+    }
+
+    const tenantId = this.requireTenantId(currentUser);
+
     const booking = await this.prisma.booking.findFirst({
       where: {
         id,
-        tenantId: currentUser.tenantId,
+        tenantId,
       },
       include: {
         user: true,
@@ -76,8 +124,8 @@ export class BookingsService {
       where: { id: bookingUserId },
     });
 
-    if (!bookingUser || bookingUser.tenantId !== currentUser.tenantId) {
-      throw new ForbiddenException('User must belong to the current tenant');
+    if (!bookingUser) {
+      throw new ForbiddenException('User not found');
     }
 
     const overlappingBooking = await this.prisma.booking.findFirst({
@@ -132,10 +180,40 @@ export class BookingsService {
   }
 
   findAll(currentUser: JwtPayload) {
+    if (currentUser.role === Roles.SUPER_ADMIN) {
+      return this.prisma.booking.findMany({
+        include: {
+          user: true,
+          property: true,
+          payments: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+    }
+
+    if (currentUser.role === Roles.TENANT_ADMIN) {
+      const tenantId = this.requireTenantId(currentUser);
+
+      return this.prisma.booking.findMany({
+        where: {
+          tenantId,
+        },
+        include: {
+          user: true,
+          property: true,
+          payments: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+    }
+
     return this.prisma.booking.findMany({
       where: {
-        tenantId: currentUser.tenantId,
-        ...(currentUser.role === 'ADMIN' ? {} : { userId: currentUser.sub }),
+        userId: currentUser.sub,
       },
       include: {
         user: true,
@@ -149,37 +227,23 @@ export class BookingsService {
   }
 
   async findOne(id: number, currentUser: JwtPayload) {
-    const booking = await this.prisma.booking.findFirst({
-      where: {
-        id,
-        tenantId: currentUser.tenantId,
-      },
-      include: {
-        user: true,
-        property: true,
-        payments: true,
-      },
-    });
-
-    if (!booking) {
-      throw new NotFoundException(`Booking with id ${id} not found`);
-    }
-
-    if (currentUser.role !== 'ADMIN' && booking.userId !== currentUser.sub) {
-      throw new ForbiddenException('You cannot access this booking');
-    }
-
-    return booking;
+    return this.verifyTenantBooking(id, currentUser);
   }
 
   async findByUser(userId: number, currentUser: JwtPayload) {
-    if (currentUser.role !== 'ADMIN' && userId !== currentUser.sub) {
+    if (currentUser.role === Roles.USER && userId !== currentUser.sub) {
       throw new ForbiddenException('You cannot access bookings for this user');
     }
+
+    const tenantId =
+      currentUser.role === Roles.TENANT_ADMIN
+        ? this.requireTenantId(currentUser)
+        : undefined;
 
     return this.prisma.booking.findMany({
       where: {
         userId,
+        ...(tenantId ? { tenantId } : {}),
       },
       include: {
         property: {
@@ -206,7 +270,7 @@ export class BookingsService {
     const existingBooking = await this.verifyTenantBooking(id, currentUser);
 
     if (
-      currentUser.role !== 'ADMIN' &&
+      currentUser.role === Roles.USER &&
       existingBooking.userId !== currentUser.sub
     ) {
       throw new ForbiddenException('You cannot update this booking');
@@ -231,7 +295,12 @@ export class BookingsService {
       where: { id: propertyId },
     });
 
-    if (!property || property.tenantId !== currentUser.tenantId) {
+    if (
+      !property ||
+      property.status !== 'ACTIVE' ||
+      (currentUser.role === Roles.TENANT_ADMIN &&
+        property.tenantId !== currentUser.tenantId)
+    ) {
       throw new NotFoundException(`Property with id ${propertyId} not found`);
     }
 
@@ -241,7 +310,7 @@ export class BookingsService {
           not: id,
         },
         propertyId,
-        tenantId: currentUser.tenantId,
+        tenantId: property.tenantId,
         status: {
           not: 'CANCELLED',
         },
@@ -261,7 +330,7 @@ export class BookingsService {
     }
 
     const bookingUserId =
-      currentUser.role === 'ADMIN'
+      currentUser.role !== Roles.USER
         ? (updateBookingDto.userId ?? existingBooking.userId)
         : existingBooking.userId;
 
@@ -270,7 +339,14 @@ export class BookingsService {
         where: { id: bookingUserId },
       });
 
-      if (!bookingUser || bookingUser.tenantId !== currentUser.tenantId) {
+      if (!bookingUser) {
+        throw new ForbiddenException('User must belong to the current tenant');
+      }
+
+      if (
+        currentUser.role === Roles.TENANT_ADMIN &&
+        bookingUser.tenantId !== currentUser.tenantId
+      ) {
         throw new ForbiddenException('User must belong to the current tenant');
       }
     }
@@ -287,6 +363,7 @@ export class BookingsService {
         status: updateBookingDto.status,
         userId: bookingUserId,
         propertyId: propertyId,
+        tenantId: property.tenantId,
         startDate,
         endDate,
         totalPrice,
@@ -302,7 +379,7 @@ export class BookingsService {
   async cancel(id: number, currentUser: JwtPayload) {
     const booking = await this.verifyTenantBooking(id, currentUser);
 
-    if (currentUser.role !== 'ADMIN' && booking.userId !== currentUser.sub) {
+    if (currentUser.role === Roles.USER && booking.userId !== currentUser.sub) {
       throw new ForbiddenException('You cannot cancel this booking');
     }
 
@@ -317,7 +394,7 @@ export class BookingsService {
   async confirm(id: number, currentUser: JwtPayload) {
     const booking = await this.verifyTenantBooking(id, currentUser);
 
-    if (currentUser.role !== 'ADMIN' && booking.userId !== currentUser.sub) {
+    if (currentUser.role === Roles.USER && booking.userId !== currentUser.sub) {
       throw new ForbiddenException('You cannot confirm this booking');
     }
 
@@ -332,7 +409,7 @@ export class BookingsService {
   async remove(id: number, currentUser: JwtPayload) {
     const booking = await this.verifyTenantBooking(id, currentUser);
 
-    if (currentUser.role !== 'ADMIN' && booking.userId !== currentUser.sub) {
+    if (currentUser.role === Roles.USER && booking.userId !== currentUser.sub) {
       throw new ForbiddenException('You cannot delete this booking');
     }
 
