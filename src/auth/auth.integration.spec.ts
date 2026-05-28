@@ -82,15 +82,15 @@ describe('Auth endpoints (integration)', () => {
       .expect(400);
   });
 
-  it('registers and returns verifiable access and refresh tokens', async () => {
+  it('registers a customer account and returns verifiable access and refresh tokens', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
-    prisma.tenant.create.mockResolvedValue({ id: 1, name: 'Acme' });
     prisma.role.findUnique.mockResolvedValue({ id: 1, name: 'USER' });
     prisma.user.create.mockResolvedValue({
       id: 1,
-      email: 'tenant@example.com',
+      email: 'user@example.com',
       password: 'hashed',
-      tenantId: 1,
+      tenantId: null,
+      roleId: 1,
       role: { name: 'USER' },
     });
     prisma.refreshToken.create.mockResolvedValue({});
@@ -98,7 +98,7 @@ describe('Auth endpoints (integration)', () => {
     const response = await request(app.getHttpServer())
       .post('/auth/register')
       .send({
-        email: 'tenant@example.com',
+        email: 'user@example.com',
         password: 'StrongPassword123!',
         tenantName: 'Acme',
       })
@@ -111,12 +111,12 @@ describe('Auth endpoints (integration)', () => {
       jwtService.verifyAsync(response.body.accessToken, {
         secret: 'test-access-secret',
       }),
-    ).resolves.toMatchObject({ sub: 1, role: 'USER', tenantId: 1 });
+    ).resolves.toMatchObject({ sub: 1, role: 'USER', tenantId: null });
     await expect(
       jwtService.verifyAsync(response.body.refreshToken, {
         secret: 'test-refresh-secret',
       }),
-    ).resolves.toMatchObject({ sub: 1, role: 'USER', tenantId: 1 });
+    ).resolves.toMatchObject({ sub: 1, role: 'USER', tenantId: null });
   });
 
   it('returns the current user from a bearer access token', async () => {

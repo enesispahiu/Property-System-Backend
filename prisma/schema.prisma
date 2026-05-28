@@ -16,6 +16,7 @@ model Tenant {
   domain        String?
   logoUrl       String?
   primaryColor  String?
+  status        String         @default("ACTIVE")
   users         User[]
   properties    Property[]
   bookings      Booking[]
@@ -147,6 +148,7 @@ model Payment {
   id     Int    @id @default(autoincrement())
   amount Float
   status String
+  method String?
 
   bookingId Int
   booking   Booking @relation(fields: [bookingId], references: [id])

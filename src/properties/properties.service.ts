@@ -11,17 +11,33 @@ import { CreatePropertyImageDto } from './dto/create-property-image.dto';
 import { AddPropertyAmenityDto } from './dto/add-property-amenity.dto';
 import { JwtPayload } from '../auth/jwt-payload.type';
 import { Roles } from '../auth/roles';
+import { SearchService } from '../search/search.service';
 
 @Injectable()
 export class PropertiesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly searchService: SearchService,
+  ) {}
 
   private propertySelection = {
     tenant: true,
-    owner: true,
+    owner: {
+      select: {
+        id: true,
+        email: true,
+        roleId: true,
+        tenantId: true,
+        role: true,
+      },
+    },
     category: true,
     images: true,
-    amenities: true,
+    amenities: {
+      include: {
+        amenity: true,
+      },
+    },
     bookings: true,
     reviews: true,
     availability: true,
@@ -77,6 +93,21 @@ export class PropertiesService {
 
     if (!tenantId) {
       throw new ForbiddenException('Tenant information is required');
+    }
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { status: true },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException(`Tenant with id ${tenantId} not found`);
+    }
+
+    if (tenant.status !== 'ACTIVE' && createPropertyDto.status !== 'INACTIVE') {
+      throw new ForbiddenException(
+        'Tenant is inactive and cannot create active properties',
+      );
     }
 
     const ownerId =
@@ -147,10 +178,15 @@ export class PropertiesService {
       include: this.propertySelection,
     });
 
+    const canViewInactive =
+      currentUser?.role === Roles.SUPER_ADMIN ||
+      (currentUser?.role === Roles.TENANT_ADMIN &&
+        property?.tenantId === currentUser.tenantId);
+
     if (
       !property ||
-      ((!currentUser || property.tenantId !== currentUser.tenantId) &&
-        property.status !== 'ACTIVE')
+      ((property.status !== 'ACTIVE' || property.tenant.status !== 'ACTIVE') &&
+        !canViewInactive)
     ) {
       throw new NotFoundException(`Property with id ${id} not found`);
     }
@@ -312,8 +348,32 @@ export class PropertiesService {
   async remove(id: number, currentUser: JwtPayload) {
     await this.verifyTenantProperty(id, currentUser);
 
-    return this.prisma.property.delete({
+    const property = await this.prisma.property.update({
       where: { id },
+      data: {
+        status: 'INACTIVE',
+      },
+      include: this.propertySelection,
     });
+
+    this.searchService.clearCache();
+
+    return property;
+  }
+
+  async reactivate(id: number, currentUser: JwtPayload) {
+    await this.verifyTenantProperty(id, currentUser);
+
+    const property = await this.prisma.property.update({
+      where: { id },
+      data: {
+        status: 'ACTIVE',
+      },
+      include: this.propertySelection,
+    });
+
+    this.searchService.clearCache();
+
+    return property;
   }
 }

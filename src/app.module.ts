@@ -16,6 +16,8 @@ import { PropertiesModule } from './properties/properties.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { UsersModule } from './users/users.module';
 import { PlatformModule } from './platform/platform.module';
+import { FavoritesModule } from './favorites/favorites.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { PlatformModule } from './platform/platform.module';
     BookingsModule,
     UsersModule,
     PlatformModule,
+    FavoritesModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [

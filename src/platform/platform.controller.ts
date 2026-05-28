@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -28,9 +29,11 @@ export class PlatformController {
   constructor(private readonly platformService: PlatformService) {}
 
   @Get('tenants')
-  @ApiOperation({ summary: 'List all tenants for the platform owner' })
-  findTenants() {
-    return this.platformService.findTenants();
+  @ApiOperation({ summary: 'List active tenants for the platform owner' })
+  findTenants(@Query('includeInactive') includeInactive?: string) {
+    return this.platformService.findTenants({
+      includeInactive: includeInactive === 'true',
+    });
   }
 
   @Post('tenants')
@@ -58,6 +61,20 @@ export class PlatformController {
   @ApiOperation({ summary: 'Delete an empty tenant' })
   deleteTenant(@Param('id', ParseIntPipe) id: number) {
     return this.platformService.deleteTenant(id);
+  }
+
+  @Patch('tenants/:id/deactivate')
+  @ApiOperation({
+    summary: 'Deactivate/archive a tenant without deleting related data',
+  })
+  deactivateTenant(@Param('id', ParseIntPipe) id: number) {
+    return this.platformService.deactivateTenant(id);
+  }
+
+  @Patch('tenants/:id/reactivate')
+  @ApiOperation({ summary: 'Reactivate an archived tenant' })
+  reactivateTenant(@Param('id', ParseIntPipe) id: number) {
+    return this.platformService.reactivateTenant(id);
   }
 
   @Post('tenants/:id/admins')

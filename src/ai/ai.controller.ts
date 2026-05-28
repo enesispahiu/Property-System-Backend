@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -15,6 +15,12 @@ import { GenerateDescriptionDto } from './dto/generate-description.dto';
 @Controller('ai')
 export class AiController {
   constructor(private readonly aiService: AiService) {}
+
+  @Get('health')
+  @ApiOperation({ summary: 'Check local Ollama availability' })
+  health() {
+    return this.aiService.health();
+  }
 
   @Post('chat')
   @ApiOperation({ summary: 'Chat with the local Ollama assistant' })

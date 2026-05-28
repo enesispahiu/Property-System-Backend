@@ -10,13 +10,18 @@ import { Roles } from '../auth/roles';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { CreateTenantAdminDto } from './dto/create-tenant-admin.dto';
+import { SearchService } from '../search/search.service';
 
 @Injectable()
 export class PlatformService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly searchService: SearchService,
+  ) {}
 
-  findTenants() {
+  findTenants(options: { includeInactive?: boolean } = {}) {
     return this.prisma.tenant.findMany({
+      where: options.includeInactive ? undefined : { status: 'ACTIVE' },
       include: {
         _count: {
           select: {
@@ -24,6 +29,7 @@ export class PlatformService {
             properties: true,
             bookings: true,
             reviews: true,
+            notifications: true,
           },
         },
       },
@@ -111,6 +117,7 @@ export class PlatformService {
             properties: true,
             bookings: true,
             reviews: true,
+            notifications: true,
           },
         },
       },
@@ -122,14 +129,41 @@ export class PlatformService {
       (count.users > 0 ||
         count.properties > 0 ||
         count.bookings > 0 ||
-        count.reviews > 0)
+        count.reviews > 0 ||
+        count.notifications > 0)
     ) {
       throw new BadRequestException(
-        'Tenant has related data and cannot be deleted safely',
+        'Tenant cannot be permanently deleted because it has related data. Deactivate/archive is recommended.',
       );
     }
 
     return this.prisma.tenant.delete({ where: { id } });
+  }
+
+  async deactivateTenant(id: number) {
+    await this.findTenant(id);
+
+    const tenant = await this.prisma.tenant.update({
+      where: { id },
+      data: { status: 'INACTIVE' },
+    });
+
+    this.searchService.clearCache();
+
+    return tenant;
+  }
+
+  async reactivateTenant(id: number) {
+    await this.findTenant(id);
+
+    const tenant = await this.prisma.tenant.update({
+      where: { id },
+      data: { status: 'ACTIVE' },
+    });
+
+    this.searchService.clearCache();
+
+    return tenant;
   }
 
   async createTenantAdmin(tenantId: number, dto: CreateTenantAdminDto) {

@@ -16,6 +16,7 @@ import { UpdatePropertyDto } from './dto/update-property.dto';
 import { CreatePropertyImageDto } from './dto/create-property-image.dto';
 import { AddPropertyAmenityDto } from './dto/add-property-amenity.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -41,7 +42,8 @@ export class PropertiesController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(AppRoles.TENANT_ADMIN, AppRoles.SUPER_ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List properties scoped by role' })
   findAll(@CurrentUser() currentUser: JwtPayload) {
@@ -117,9 +119,13 @@ export class PropertiesController {
   }
 
   @Get(':id')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get public details for an active property' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.propertiesService.findOne(id);
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() currentUser?: JwtPayload,
+  ) {
+    return this.propertiesService.findOne(id, currentUser);
   }
 
   @Patch(':id')
@@ -135,11 +141,23 @@ export class PropertiesController {
     return this.propertiesService.update(id, updatePropertyDto, currentUser);
   }
 
+  @Patch(':id/reactivate')
+  @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+  @Roles(AppRoles.TENANT_ADMIN, AppRoles.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Reactivate a property in the current tenant' })
+  reactivate(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    return this.propertiesService.reactivate(id, currentUser);
+  }
+
   @Delete(':id')
   @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
   @Roles(AppRoles.TENANT_ADMIN, AppRoles.SUPER_ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete a property in the current tenant' })
+  @ApiOperation({ summary: 'Deactivate a property in the current tenant' })
   remove(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() currentUser: JwtPayload,

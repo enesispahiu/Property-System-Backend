@@ -8,7 +8,7 @@ NestJS API for a multi-tenant property rental system. The React frontend is a se
 - Prisma ORM with PostgreSQL
 - JWT access tokens and refresh tokens
 - Swagger UI at `/api/docs`
-- OpenAI integration with a graceful local fallback when `OPENAI_API_KEY` is not set
+- Local Ollama integration for AI assistant features
 
 ## Setup
 
@@ -22,6 +22,24 @@ npm run start:dev
 
 The API runs on `http://localhost:3000` unless `PORT` is set.
 
+## Ollama AI Setup
+
+AI endpoints use a local Ollama server, not OpenAI.
+
+```bash
+ollama --version
+ollama pull llama3.2
+ollama serve
+```
+
+Check available local models:
+
+```bash
+curl http://localhost:11434/api/tags
+```
+
+The backend also exposes `GET /ai/health`, which returns safe JSON even when Ollama is unavailable.
+
 ## Environment
 
 Create a local `.env` file. Do not commit real environment files.
@@ -31,8 +49,8 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/property_system?schem
 JWT_SECRET=replace_me
 JWT_ACCESS_SECRET=replace_me
 JWT_REFRESH_SECRET=replace_me
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-4.1-mini
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2
 PORT=3000
 ```
 
@@ -43,7 +61,7 @@ PORT=3000
 - `GET /properties/:id`
 - `POST /bookings`, `GET /bookings`, `GET /bookings/user/:userId`
 - `POST /reviews`, `GET /properties/:propertyId/reviews`, `GET /properties/:propertyId/reviews/average`
-- `POST /ai/chatbot`, `POST /ai/generate-description`, `POST /ai/analyze-review`
+- `GET /ai/health`, `POST /ai/chat`, `POST /ai/property-description`, `POST /ai/review-analysis`
 
 ## Architecture Notes
 
