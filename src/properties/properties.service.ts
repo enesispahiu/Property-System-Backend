@@ -129,7 +129,7 @@ export class PropertiesService {
       throw new ForbiddenException('Owner must belong to the current tenant');
     }
 
-    return this.prisma.property.create({
+    const property = await this.prisma.property.create({
       data: {
         title: createPropertyDto.title,
         description: createPropertyDto.description,
@@ -141,6 +141,10 @@ export class PropertiesService {
         ownerId,
       },
     });
+
+    await this.searchService.clearCache();
+
+    return property;
   }
 
   findAll(currentUser: JwtPayload) {
@@ -204,10 +208,14 @@ export class PropertiesService {
     const data = { ...updatePropertyDto };
     delete data.tenantId;
 
-    return this.prisma.property.update({
+    const property = await this.prisma.property.update({
       where: { id },
       data,
     });
+
+    await this.searchService.clearCache();
+
+    return property;
   }
 
   async addImage(
@@ -356,7 +364,7 @@ export class PropertiesService {
       include: this.propertySelection,
     });
 
-    this.searchService.clearCache();
+    await this.searchService.clearCache();
 
     return property;
   }
@@ -372,7 +380,7 @@ export class PropertiesService {
       include: this.propertySelection,
     });
 
-    this.searchService.clearCache();
+    await this.searchService.clearCache();
 
     return property;
   }

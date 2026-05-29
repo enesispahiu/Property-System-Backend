@@ -1,24 +1,34 @@
 import { Injectable } from '@nestjs/common';
+import { RedisCacheService } from '../cache/redis-cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class SearchService {
-  private cache = new Map<string, { data: any; expiresAt: number }>();
+  private readonly cachePrefix = 'search:properties';
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly cache: RedisCacheService,
+  ) {}
 
-  clearCache() {
-    this.cache.clear();
+  async clearCache() {
+    await this.cache.deleteByPattern(`${this.cachePrefix}:*`);
   }
 
-  private clearExpiredCache() {
-    const now = Date.now();
+  private createCacheKey(query: Record<string, string | undefined>) {
+    const cacheKeyParams = {
+      location: query.location || '',
+      minPrice: query.minPrice || '',
+      maxPrice: query.maxPrice || '',
+      rating: query.rating || '',
+      category: query.category || query.propertyType || '',
+      categoryId: query.categoryId || '',
+      page: query.page || '',
+      limit: query.limit || '',
+      sort: query.sort || '',
+    };
 
-    for (const [key, value] of this.cache.entries()) {
-      if (value.expiresAt <= now) {
-        this.cache.delete(key);
-      }
-    }
+    return `${this.cachePrefix}:${JSON.stringify(cacheKeyParams)}`;
   }
 
   async searchProperties(query: {
@@ -34,8 +44,6 @@ export class SearchService {
     sort?: string;
     sortBy?: string;
   }) {
-    this.clearExpiredCache();
-
     const requestedPage = Number(query.page);
     const requestedLimit = Number(query.limit);
     const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
@@ -50,8 +58,7 @@ export class SearchService {
     };
     delete normalizedQuery.sortBy;
 
-    const cacheKey = JSON.stringify(normalizedQuery);
-    const cachedResult = this.cache.get(cacheKey);
+    const cacheKey = this.createCacheKey(normalizedQuery);
 
     await this.prisma.searchHistory.create({
       data: {
@@ -59,9 +66,11 @@ export class SearchService {
       },
     });
 
-    if (cachedResult && cachedResult.expiresAt > Date.now()) {
+    const cachedResult = await this.cache.getJson<any>(cacheKey);
+
+    if (cachedResult) {
       return {
-        ...cachedResult.data,
+        ...cachedResult,
         cached: true,
       };
     }
@@ -177,10 +186,7 @@ export class SearchService {
       cached: false,
     };
 
-    this.cache.set(cacheKey, {
-      data: result,
-      expiresAt: Date.now() + 60 * 1000,
-    });
+    await this.cache.setJson(cacheKey, result);
 
     return result;
   }
