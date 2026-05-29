@@ -41,7 +41,11 @@ export class BookingsService {
         where: { id },
         include: {
           user: true,
-          property: true,
+          property: {
+            include: {
+              images: true,
+            },
+          },
           payments: true,
         },
       });
@@ -61,7 +65,11 @@ export class BookingsService {
         },
         include: {
           user: true,
-          property: true,
+          property: {
+            include: {
+              images: true,
+            },
+          },
           payments: true,
         },
       });
@@ -82,7 +90,11 @@ export class BookingsService {
       },
       include: {
         user: true,
-        property: true,
+        property: {
+          include: {
+            images: true,
+          },
+        },
         payments: true,
       },
     });
@@ -173,7 +185,11 @@ export class BookingsService {
       },
       include: {
         user: true,
-        property: true,
+        property: {
+          include: {
+            images: true,
+          },
+        },
         payments: true,
       },
     });
@@ -184,7 +200,11 @@ export class BookingsService {
       return this.prisma.booking.findMany({
         include: {
           user: true,
-          property: true,
+          property: {
+            include: {
+              images: true,
+            },
+          },
           payments: true,
         },
         orderBy: {
@@ -202,7 +222,11 @@ export class BookingsService {
         },
         include: {
           user: true,
-          property: true,
+          property: {
+            include: {
+              images: true,
+            },
+          },
           payments: true,
         },
         orderBy: {
@@ -217,7 +241,11 @@ export class BookingsService {
       },
       include: {
         user: true,
-        property: true,
+        property: {
+          include: {
+            images: true,
+          },
+        },
         payments: true,
       },
       orderBy: {
@@ -252,6 +280,7 @@ export class BookingsService {
             title: true,
             location: true,
             price: true,
+            images: true,
           },
         },
         payments: true,
@@ -370,7 +399,11 @@ export class BookingsService {
       },
       include: {
         user: true,
-        property: true,
+        property: {
+          include: {
+            images: true,
+          },
+        },
         payments: true,
       },
     });
