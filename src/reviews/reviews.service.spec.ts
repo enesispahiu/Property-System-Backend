@@ -16,6 +16,9 @@ describe('ReviewsService', () => {
       update: jest.fn(),
       delete: jest.fn(),
     },
+    reviewAnalysis: {
+      findUnique: jest.fn(),
+    },
     property: {
       findFirst: jest.fn(),
     },
@@ -99,6 +102,7 @@ describe('ReviewsService', () => {
           tenantId: 11,
         },
         include: {
+          analysis: true,
           user: {
             select: {
               id: true,
@@ -171,6 +175,7 @@ describe('ReviewsService', () => {
           propertyId: 8,
         },
         include: {
+          analysis: true,
           user: {
             select: {
               id: true,

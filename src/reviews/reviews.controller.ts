@@ -34,9 +34,20 @@ export class ReviewsController {
   }
 
   @Get('properties/:propertyId/reviews')
-  @ApiOperation({ summary: 'List public reviews for an active property' })
+  @ApiOperation({ summary: 'List public reviews with AI analysis for an active property' })
   getPropertyReviews(@Param('propertyId', ParseIntPipe) propertyId: number) {
     return this.reviewsService.getPropertyReviews(propertyId);
+  }
+
+  @Get('reviews/:id/analysis')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get AI analysis for a review' })
+  getReviewAnalysis(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    return this.reviewsService.getReviewAnalysis(id, currentUser);
   }
 
   @Get('properties/:propertyId/reviews/average')

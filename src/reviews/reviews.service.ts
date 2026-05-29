@@ -14,6 +14,22 @@ import { Roles } from '../auth/roles';
 export class ReviewsService {
   constructor(private prisma: PrismaService) {}
 
+  private readonly reviewInclude = {
+    analysis: true,
+    user: {
+      select: {
+        id: true,
+        email: true,
+      },
+    },
+    property: {
+      select: {
+        id: true,
+        title: true,
+      },
+    },
+  };
+
   private async verifyActiveProperty(propertyId: number) {
     const property = await this.prisma.property.findFirst({
       where: {
@@ -112,6 +128,7 @@ export class ReviewsService {
         tenantId: property.tenantId,
       },
       include: {
+        analysis: true,
         user: {
           select: {
             id: true,
@@ -136,6 +153,7 @@ export class ReviewsService {
         propertyId,
       },
       include: {
+        analysis: true,
         user: {
           select: {
             id: true,
@@ -175,6 +193,20 @@ export class ReviewsService {
       averageRating: result._avg.rating || 0,
       totalReviews: result._count.rating,
     };
+  }
+
+  async getReviewAnalysis(id: number, currentUser: JwtPayload) {
+    await this.verifyReviewTenant(id, currentUser);
+
+    const analysis = await this.prisma.reviewAnalysis.findUnique({
+      where: { reviewId: id },
+    });
+
+    if (!analysis) {
+      throw new NotFoundException('Review analysis not found');
+    }
+
+    return analysis;
   }
 
   async updateReview(
