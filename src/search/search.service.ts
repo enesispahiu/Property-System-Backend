@@ -7,6 +7,10 @@ export class SearchService {
 
   constructor(private prisma: PrismaService) {}
 
+  clearCache() {
+    this.cache.clear();
+  }
+
   private clearExpiredCache() {
     const now = Date.now();
 
@@ -22,20 +26,36 @@ export class SearchService {
     minPrice?: string;
     maxPrice?: string;
     rating?: string;
+    category?: string;
     categoryId?: string;
     propertyType?: string;
     page?: string;
     limit?: string;
     sort?: string;
+    sortBy?: string;
   }) {
     this.clearExpiredCache();
 
-    const cacheKey = JSON.stringify(query);
+    const requestedPage = Number(query.page);
+    const requestedLimit = Number(query.limit);
+    const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+    const limit =
+      Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 10;
+
+    const normalizedQuery = {
+      ...query,
+      page: String(page),
+      limit: String(limit),
+      sort: query.sort || query.sortBy,
+    };
+    delete normalizedQuery.sortBy;
+
+    const cacheKey = JSON.stringify(normalizedQuery);
     const cachedResult = this.cache.get(cacheKey);
 
     await this.prisma.searchHistory.create({
       data: {
-        query: JSON.stringify(query),
+        query: JSON.stringify(normalizedQuery),
       },
     });
 
@@ -46,41 +66,44 @@ export class SearchService {
       };
     }
 
-    const page = Number(query.page) || 1;
-    const limit = Number(query.limit) || 10;
     const skip = (page - 1) * limit;
 
     const where: any = {
       status: 'ACTIVE',
+      tenant: {
+        status: 'ACTIVE',
+      },
     };
 
-    if (query.location) {
+    if (normalizedQuery.location) {
       where.location = {
-        contains: query.location,
+        contains: normalizedQuery.location,
         mode: 'insensitive',
       };
     }
 
-    if (query.minPrice || query.maxPrice) {
+    if (normalizedQuery.minPrice || normalizedQuery.maxPrice) {
       where.price = {};
 
-      if (query.minPrice) {
-        where.price.gte = Number(query.minPrice);
+      if (normalizedQuery.minPrice) {
+        where.price.gte = Number(normalizedQuery.minPrice);
       }
 
-      if (query.maxPrice) {
-        where.price.lte = Number(query.maxPrice);
+      if (normalizedQuery.maxPrice) {
+        where.price.lte = Number(normalizedQuery.maxPrice);
       }
     }
 
-    if (query.categoryId) {
-      where.categoryId = Number(query.categoryId);
+    if (normalizedQuery.categoryId) {
+      where.categoryId = Number(normalizedQuery.categoryId);
     }
 
-    if (query.propertyType) {
+    const categoryName = normalizedQuery.category || normalizedQuery.propertyType;
+
+    if (categoryName) {
       where.category = {
         name: {
-          contains: query.propertyType,
+          contains: categoryName,
           mode: 'insensitive',
         },
       };
@@ -90,13 +113,13 @@ export class SearchService {
       createdAt: 'desc',
     };
 
-    if (query.sort === 'price_asc') {
+    if (normalizedQuery.sort === 'price_asc') {
       orderBy = {
         price: 'asc',
       };
     }
 
-    if (query.sort === 'price_desc') {
+    if (normalizedQuery.sort === 'price_desc') {
       orderBy = {
         price: 'desc',
       };
@@ -106,7 +129,9 @@ export class SearchService {
       where,
       orderBy,
       include: {
+        tenant: true,
         category: true,
+        images: true,
         reviews: true,
       },
     });
@@ -127,8 +152,8 @@ export class SearchService {
       };
     });
 
-    if (query.rating) {
-      const minRating = Number(query.rating);
+    if (normalizedQuery.rating) {
+      const minRating = Number(normalizedQuery.rating);
 
       propertiesWithRating = propertiesWithRating.filter(
         (property) => property.averageRating >= minRating,
@@ -138,14 +163,17 @@ export class SearchService {
     const total = propertiesWithRating.length;
     const paginatedProperties = propertiesWithRating.slice(skip, skip + limit);
 
+    const meta = {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    };
+
     const result = {
       data: paginatedProperties,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      meta,
+      pagination: meta,
       cached: false,
     };
 

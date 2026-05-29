@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
+import { SearchModule } from '../search/search.module';
 import { PlatformController } from './platform.controller';
 import { PlatformService } from './platform.service';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, SearchModule],
   controllers: [PlatformController],
   providers: [PlatformService],
 })

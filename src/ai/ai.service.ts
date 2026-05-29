@@ -14,6 +14,10 @@ type OllamaChatResponse = {
   };
 };
 
+type OllamaTagsResponse = {
+  models?: Array<{ name?: string }>;
+};
+
 @Injectable()
 export class AiService {
   private readonly baseUrl: string;
@@ -71,6 +75,43 @@ export class AiService {
       throw new InternalServerErrorException(
         'AI assistant is currently unavailable. Make sure Ollama/backend AI service is running.',
       );
+    }
+  }
+
+  async health() {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/tags`, {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        return {
+          status: 'unavailable',
+          provider: 'ollama',
+          baseUrl: this.baseUrl,
+          model: this.model,
+          ok: false,
+        };
+      }
+
+      const data = (await response.json()) as OllamaTagsResponse;
+
+      return {
+        status: 'ok',
+        provider: 'ollama',
+        baseUrl: this.baseUrl,
+        model: this.model,
+        ok: true,
+        models: (data.models ?? []).map((model) => model.name).filter(Boolean),
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        provider: 'ollama',
+        baseUrl: this.baseUrl,
+        model: this.model,
+        ok: false,
+      };
     }
   }
 
