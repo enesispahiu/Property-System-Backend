@@ -117,7 +117,20 @@ model Review {
   tenantId Int
   tenant   Tenant @relation(fields: [tenantId], references: [id])
 
+  analysis  ReviewAnalysis?
   createdAt DateTime @default(now())
+}
+
+model ReviewAnalysis {
+  id        Int      @id @default(autoincrement())
+  reviewId  Int      @unique
+  sentiment String
+  summary   String
+  issue     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
 }
 
 model Amenity {

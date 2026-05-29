@@ -18,6 +18,12 @@ type OllamaTagsResponse = {
   models?: Array<{ name?: string }>;
 };
 
+export type ReviewAnalysisResult = {
+  sentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' | 'MIXED' | 'UNKNOWN';
+  summary: string;
+  issue: string | null;
+};
+
 @Injectable()
 export class AiService {
   private readonly baseUrl: string;
@@ -159,7 +165,45 @@ Return a short, attractive and clear description.
     return this.generateText(prompt);
   }
 
-  async reviewAnalysis(dto: AnalyzeReviewDto) {
+  private parseReviewAnalysis(rawText: string): ReviewAnalysisResult {
+    const text = rawText.trim();
+    const normalized = text.toLowerCase();
+    const sentimentMatch = normalized.match(
+      /sentiment\s*[:\-]\s*(positive|neutral|negative|mixed|unknown)/i,
+    );
+    const detectedSentiment =
+      sentimentMatch?.[1] ??
+      (normalized.includes('negative')
+        ? 'negative'
+        : normalized.includes('mixed')
+          ? 'mixed'
+          : normalized.includes('neutral')
+            ? 'neutral'
+            : normalized.includes('positive')
+              ? 'positive'
+              : 'unknown');
+
+    const summaryMatch = text.match(
+      /summary\s*[:\-]\s*([\s\S]*?)(?:\n\s*(?:issue|main issue)\s*[:\-]|$)/i,
+    );
+    const issueMatch = text.match(/(?:issue|main issue)\s*[:\-]\s*([\s\S]*)/i);
+    const summary = (summaryMatch?.[1] || text)
+      .replace(/^[-*\s]+/, '')
+      .trim()
+      .slice(0, 500);
+    const issue = (issueMatch?.[1] || '')
+      .replace(/^[-*\s]+/, '')
+      .trim()
+      .slice(0, 500);
+
+    return {
+      sentiment: detectedSentiment.toUpperCase() as ReviewAnalysisResult['sentiment'],
+      summary: summary || 'AI analysis completed.',
+      issue: issue && !/^none|n\/a|no issue/i.test(issue) ? issue : null,
+    };
+  }
+
+  async reviewAnalysis(dto: AnalyzeReviewDto): Promise<ReviewAnalysisResult> {
     const comment = dto.comment || dto.reviewText;
 
     if (!comment || comment.trim() === '') {
@@ -172,13 +216,15 @@ Analyze this property review.
 Review:
 ${comment}
 
-Return:
-- sentiment: positive, neutral or negative
-- short summary
-- main issue if any
+Return exactly this format:
+sentiment: POSITIVE, NEUTRAL, NEGATIVE or MIXED
+summary: one short sentence
+issue: main issue if any, otherwise none
 `;
 
-    return this.generateText(prompt);
+    const response = await this.generateText(prompt);
+
+    return this.parseReviewAnalysis(response.result);
   }
 
   chatbot(dto: ChatbotDto) {
