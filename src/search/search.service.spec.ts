@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SearchService } from './search.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisCacheService } from '../cache/redis-cache.service';
 
 describe('SearchService', () => {
   let service: SearchService;
@@ -14,9 +15,17 @@ describe('SearchService', () => {
       findMany: jest.fn(),
     },
   };
+  const mockCacheService = {
+    getJson: jest.fn(),
+    setJson: jest.fn(),
+    deleteByPattern: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockCacheService.getJson.mockResolvedValue(null);
+    mockCacheService.setJson.mockResolvedValue(undefined);
+    mockCacheService.deleteByPattern.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -24,6 +33,10 @@ describe('SearchService', () => {
         {
           provide: PrismaService,
           useValue: mockPrismaService,
+        },
+        {
+          provide: RedisCacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();
@@ -165,6 +178,44 @@ describe('SearchService', () => {
     expect(firstPage.data.map((property) => property.id)).toEqual([1, 2, 3]);
     expect(secondPage.data.map((property) => property.id)).toEqual([4, 5, 6]);
     expect(mockPrismaService.property.findMany).toHaveBeenCalledTimes(2);
+    expect(mockCacheService.getJson.mock.calls[0][0]).toContain('"page":"1"');
+    expect(mockCacheService.getJson.mock.calls[1][0]).toContain('"page":"2"');
+  });
+
+  it('returns cached search results without querying properties', async () => {
+    mockCacheService.getJson.mockResolvedValueOnce({
+      data: [{ id: 99, title: 'Cached result' }],
+      meta: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      cached: false,
+    });
+    mockPrismaService.searchHistory.create.mockResolvedValue({});
+
+    const result = await service.searchProperties({
+      location: 'Prishtina',
+      minPrice: '50',
+      maxPrice: '100',
+      rating: '4',
+      category: 'Apartment',
+      page: '1',
+      limit: '10',
+      sort: 'price_asc',
+    });
+
+    expect(result.cached).toBe(true);
+    expect(result.data).toEqual([{ id: 99, title: 'Cached result' }]);
+    expect(mockPrismaService.property.findMany).not.toHaveBeenCalled();
+    expect(mockCacheService.getJson).toHaveBeenCalledWith(
+      expect.stringContaining('search:properties:'),
+    );
+  });
+
+  it('clears public search cache by Redis key pattern', async () => {
+    await service.clearCache();
+
+    expect(mockCacheService.deleteByPattern).toHaveBeenCalledWith(
+      'search:properties:*',
+    );
   });
 });
 
