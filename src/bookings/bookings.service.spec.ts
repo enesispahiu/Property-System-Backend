@@ -76,6 +76,7 @@ describe('BookingsService', () => {
               title: true,
               location: true,
               price: true,
+              images: true,
             },
           },
           payments: true,
