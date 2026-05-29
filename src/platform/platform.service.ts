@@ -148,7 +148,7 @@ export class PlatformService {
       data: { status: 'INACTIVE' },
     });
 
-    this.searchService.clearCache();
+    await this.searchService.clearCache();
 
     return tenant;
   }
@@ -161,7 +161,7 @@ export class PlatformService {
       data: { status: 'ACTIVE' },
     });
 
-    this.searchService.clearCache();
+    await this.searchService.clearCache();
 
     return tenant;
   }
