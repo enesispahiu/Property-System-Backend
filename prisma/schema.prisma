@@ -73,9 +73,13 @@ model Property {
   reviews      Review[]
   availability Availability[]
   favoritedBy  FavoriteProperty[]
+  rules        PropertyRule[]
 
   categoryId Int?
   category   Category? @relation(fields: [categoryId], references: [id])
+
+  cancellationPolicyId Int?
+  cancellationPolicy   CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
 
   createdAt DateTime @default(now())
 }
@@ -86,6 +90,7 @@ model Booking {
   endDate    DateTime
   status     String
   totalPrice Float?
+  guestCount Int      @default(1)
 
   userId Int
   user   User @relation(fields: [userId], references: [id])
@@ -252,13 +257,46 @@ model Category {
   properties Property[]
 }
 
+model CancellationPolicy {
+  id                    Int        @id @default(autoincrement())
+  name                  String     @unique
+  description           String
+  refundPercent         Int
+  freeCancellationHours Int
+  tenantId              Int?
+  propertyId            Int?
+  createdAt             DateTime   @default(now())
+  properties            Property[]
+
+  @@index([tenantId])
+  @@index([propertyId])
+}
+
+model PropertyRule {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+
+  propertyId Int
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([propertyId])
+}
+
 model Availability {
   id        Int      @id @default(autoincrement())
   startDate DateTime
   endDate   DateTime
+  reason    String?
 
   propertyId Int
   property   Property @relation(fields: [propertyId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([propertyId])
 }
 
 model ChatRoom {

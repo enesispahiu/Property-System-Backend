@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ReviewsService } from './reviews.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('ReviewsService', () => {
   let service: ReviewsService;
@@ -26,6 +27,9 @@ describe('ReviewsService', () => {
       findUnique: jest.fn(),
     },
   };
+  const notificationsService = {
+    notifyTenantAdmins: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -35,12 +39,17 @@ describe('ReviewsService', () => {
           provide: PrismaService,
           useValue: mockPrismaService,
         },
+        {
+          provide: NotificationsService,
+          useValue: notificationsService,
+        },
       ],
     }).compile();
 
     service = module.get<ReviewsService>(ReviewsService);
 
     jest.clearAllMocks();
+    notificationsService.notifyTenantAdmins.mockResolvedValue(undefined);
   });
 
   it('should be defined', () => {
@@ -116,6 +125,11 @@ describe('ReviewsService', () => {
             },
           },
         },
+      });
+      expect(notificationsService.notifyTenantAdmins).toHaveBeenCalledWith(11, {
+        title: 'New review submitted',
+        message: 'New review submitted for Beach Apartment.',
+        type: 'TENANT_REVIEW_SUBMITTED',
       });
     });
 

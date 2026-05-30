@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import { IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class UpdatePropertyDto {
@@ -23,14 +24,22 @@ export class UpdatePropertyDto {
   status?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   tenantId?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   ownerId?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   categoryId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  cancellationPolicyId?: number;
 }

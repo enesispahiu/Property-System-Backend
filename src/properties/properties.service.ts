@@ -9,15 +9,19 @@ import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { CreatePropertyImageDto } from './dto/create-property-image.dto';
 import { AddPropertyAmenityDto } from './dto/add-property-amenity.dto';
+import { CreateAvailabilityDto } from './dto/create-availability.dto';
+import { CreatePropertyRuleDto } from './dto/create-property-rule.dto';
 import { JwtPayload } from '../auth/jwt-payload.type';
 import { Roles } from '../auth/roles';
 import { SearchService } from '../search/search.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class PropertiesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly searchService: SearchService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private propertySelection = {
@@ -41,6 +45,8 @@ export class PropertiesService {
     bookings: true,
     reviews: true,
     availability: true,
+    rules: true,
+    cancellationPolicy: true,
   };
 
   private requireTenantId(currentUser: JwtPayload) {
@@ -76,6 +82,18 @@ export class PropertiesService {
     }
 
     return property;
+  }
+
+  private async notifyPropertyAdmins(
+    property: { title: string; tenantId: number },
+    currentUser: JwtPayload,
+    data: { title: string; message: string; type: string },
+  ) {
+    await this.notificationsService.notifyTenantAdmins(property.tenantId, data);
+
+    if (currentUser.role === Roles.SUPER_ADMIN) {
+      await this.notificationsService.notifySuperAdmins(data);
+    }
   }
 
   async create(createPropertyDto: CreatePropertyDto, currentUser: JwtPayload) {
@@ -137,12 +155,19 @@ export class PropertiesService {
         location: createPropertyDto.location,
         status: createPropertyDto.status,
         categoryId: createPropertyDto.categoryId,
+        cancellationPolicyId: createPropertyDto.cancellationPolicyId,
         tenantId,
         ownerId,
       },
     });
 
     await this.searchService.clearCache();
+
+    await this.notifyPropertyAdmins(property, currentUser, {
+      title: 'Property created',
+      message: `Property ${property.title} was created.`,
+      type: 'PROPERTY_CREATED',
+    });
 
     return property;
   }
@@ -203,7 +228,7 @@ export class PropertiesService {
     updatePropertyDto: UpdatePropertyDto,
     currentUser: JwtPayload,
   ) {
-    await this.verifyTenantProperty(id, currentUser);
+    const existingProperty = await this.verifyTenantProperty(id, currentUser);
 
     const data = { ...updatePropertyDto };
     delete data.tenantId;
@@ -214,6 +239,27 @@ export class PropertiesService {
     });
 
     await this.searchService.clearCache();
+
+    const notification =
+      existingProperty.status !== 'INACTIVE' && property.status === 'INACTIVE'
+        ? {
+            title: 'Property deactivated',
+            message: `Property ${property.title} was removed from public listings.`,
+            type: 'PROPERTY_DEACTIVATED',
+          }
+        : existingProperty.status === 'INACTIVE' && property.status === 'ACTIVE'
+          ? {
+              title: 'Property reactivated',
+              message: `Property ${property.title} was reactivated.`,
+              type: 'PROPERTY_REACTIVATED',
+            }
+          : {
+              title: 'Property updated',
+              message: `Property ${property.title} was updated.`,
+              type: 'PROPERTY_UPDATED',
+            };
+
+    await this.notifyPropertyAdmins(property, currentUser, notification);
 
     return property;
   }
@@ -261,7 +307,9 @@ export class PropertiesService {
       (currentUser.role !== Roles.SUPER_ADMIN &&
         image.property.tenantId !== currentUser.tenantId)
     ) {
-      throw new NotFoundException(`Property image with id ${imageId} not found`);
+      throw new NotFoundException(
+        `Property image with id ${imageId} not found`,
+      );
     }
 
     return this.prisma.propertyImage.delete({
@@ -366,6 +414,12 @@ export class PropertiesService {
 
     await this.searchService.clearCache();
 
+    await this.notifyPropertyAdmins(property, currentUser, {
+      title: 'Property deactivated',
+      message: `Property ${property.title} was removed from public listings.`,
+      type: 'PROPERTY_DEACTIVATED',
+    });
+
     return property;
   }
 
@@ -382,6 +436,176 @@ export class PropertiesService {
 
     await this.searchService.clearCache();
 
+    await this.notifyPropertyAdmins(property, currentUser, {
+      title: 'Property reactivated',
+      message: `Property ${property.title} was reactivated.`,
+      type: 'PROPERTY_REACTIVATED',
+    });
+
     return property;
+  }
+
+  async getAvailability(propertyId: number, currentUser?: JwtPayload) {
+    await this.findOne(propertyId, currentUser);
+
+    return this.prisma.availability.findMany({
+      where: { propertyId },
+      orderBy: { startDate: 'asc' },
+    });
+  }
+
+  async addAvailability(
+    propertyId: number,
+    dto: CreateAvailabilityDto,
+    currentUser: JwtPayload,
+  ) {
+    await this.verifyTenantProperty(propertyId, currentUser);
+
+    const startDate = new Date(dto.startDate);
+    const endDate = new Date(dto.endDate);
+
+    if (endDate <= startDate) {
+      throw new BadRequestException('End date must be after start date');
+    }
+
+    const overlappingBooking = await this.prisma.booking.findFirst({
+      where: {
+        propertyId,
+        status: {
+          not: 'CANCELLED',
+        },
+        startDate: {
+          lt: endDate,
+        },
+        endDate: {
+          gt: startDate,
+        },
+      },
+    });
+
+    if (overlappingBooking) {
+      throw new BadRequestException(
+        'Availability block overlaps an existing booking',
+      );
+    }
+
+    const overlappingBlock = await this.prisma.availability.findFirst({
+      where: {
+        propertyId,
+        startDate: {
+          lt: endDate,
+        },
+        endDate: {
+          gt: startDate,
+        },
+      },
+    });
+
+    if (overlappingBlock) {
+      throw new BadRequestException(
+        'Availability block overlaps another unavailable date range',
+      );
+    }
+
+    const availability = await this.prisma.availability.create({
+      data: {
+        propertyId,
+        startDate,
+        endDate,
+        reason: dto.reason?.trim() || null,
+      },
+    });
+
+    const property = await this.prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { title: true, tenantId: true },
+    });
+
+    if (property) {
+      await this.notifyPropertyAdmins(property, currentUser, {
+        title: 'Availability blocked',
+        message: `Availability was blocked for ${property.title} from ${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)}.`,
+        type: 'AVAILABILITY_BLOCK_ADDED',
+      });
+    }
+
+    return availability;
+  }
+
+  async removeAvailability(id: number, currentUser: JwtPayload) {
+    const availability = await this.prisma.availability.findUnique({
+      where: { id },
+      include: { property: true },
+    });
+
+    if (
+      !availability ||
+      (currentUser.role !== Roles.SUPER_ADMIN &&
+        availability.property.tenantId !== currentUser.tenantId)
+    ) {
+      throw new NotFoundException(`Availability with id ${id} not found`);
+    }
+
+    const deletedAvailability = await this.prisma.availability.delete({
+      where: { id },
+    });
+
+    await this.notifyPropertyAdmins(availability.property, currentUser, {
+      title: 'Availability block removed',
+      message: `Availability block was removed for ${availability.property.title}.`,
+      type: 'AVAILABILITY_BLOCK_REMOVED',
+    });
+
+    return deletedAvailability;
+  }
+
+  getCancellationPolicies() {
+    return this.prisma.cancellationPolicy.findMany({
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async getRules(propertyId: number, currentUser?: JwtPayload) {
+    await this.findOne(propertyId, currentUser);
+
+    return this.prisma.propertyRule.findMany({
+      where: { propertyId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async addRule(
+    propertyId: number,
+    dto: CreatePropertyRuleDto,
+    currentUser: JwtPayload,
+  ) {
+    await this.verifyTenantProperty(propertyId, currentUser);
+
+    return this.prisma.propertyRule.create({
+      data: {
+        propertyId,
+        title: dto.title.trim(),
+        description: dto.description?.trim() || null,
+      },
+    });
+  }
+
+  async removeRule(ruleId: number, currentUser: JwtPayload) {
+    const rule = await this.prisma.propertyRule.findUnique({
+      where: { id: ruleId },
+      include: { property: true },
+    });
+
+    if (
+      !rule ||
+      (currentUser.role !== Roles.SUPER_ADMIN &&
+        rule.property.tenantId !== currentUser.tenantId)
+    ) {
+      throw new NotFoundException(`Property rule with id ${ruleId} not found`);
+    }
+
+    return this.prisma.propertyRule.delete({
+      where: { id: ruleId },
+    });
   }
 }

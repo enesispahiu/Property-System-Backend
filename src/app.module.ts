@@ -18,6 +18,8 @@ import { UsersModule } from './users/users.module';
 import { PlatformModule } from './platform/platform.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { PaymentsModule } from './payments/payments.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { InvoicesModule } from './invoices/invoices.module';
 
 @Module({
   imports: [
@@ -40,6 +42,8 @@ import { PaymentsModule } from './payments/payments.module';
     PlatformModule,
     FavoritesModule,
     PaymentsModule,
+    NotificationsModule,
+    InvoicesModule,
   ],
   controllers: [AppController],
   providers: [

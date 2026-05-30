@@ -10,6 +10,7 @@
     "seed": "ts-node prisma/seed.ts",
     "cleanup:e2e-properties": "ts-node scripts/deactivate-e2e-public-properties.ts",
     "cleanup:e2e-tenants": "ts-node scripts/cleanup-e2e-tenants.ts",
+    "cleanup:e2e-notifications": "ts-node scripts/cleanup-e2e-notifications.ts",
     "prisma:generate": "prisma generate",
     "prebuild": "npm run prisma:generate",
     "build": "nest build",

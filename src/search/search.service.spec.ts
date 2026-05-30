@@ -182,6 +182,35 @@ describe('SearchService', () => {
     expect(mockCacheService.getJson.mock.calls[1][0]).toContain('"page":"2"');
   });
 
+  it('sorts by average rating descending before pagination and leaves unrated properties last', async () => {
+    mockPrismaService.property.findMany.mockResolvedValue([
+      propertyFixture({ id: 1, reviews: [] }),
+      propertyFixture({ id: 2, reviews: [{ rating: 4 }, { rating: 5 }] }),
+      propertyFixture({ id: 3, reviews: [{ rating: 5 }, { rating: 5 }] }),
+      propertyFixture({ id: 4, reviews: [{ rating: 3 }] }),
+    ]);
+    mockPrismaService.searchHistory.create.mockResolvedValue({});
+
+    const firstPage = await service.searchProperties({
+      sort: 'rating_desc',
+      page: '1',
+      limit: '2',
+    });
+    const secondPage = await service.searchProperties({
+      sort: 'rating_desc',
+      page: '2',
+      limit: '2',
+    });
+
+    expect(firstPage.data.map((property) => property.id)).toEqual([3, 2]);
+    expect(secondPage.data.map((property) => property.id)).toEqual([4, 1]);
+    expect(firstPage.data[0].averageRating).toBe(5);
+    expect(secondPage.data[1].totalReviews).toBe(0);
+    expect(mockCacheService.getJson.mock.calls[0][0]).toContain(
+      '"sort":"rating_desc"',
+    );
+  });
+
   it('returns cached search results without querying properties', async () => {
     mockCacheService.getJson.mockResolvedValueOnce({
       data: [{ id: 99, title: 'Cached result' }],

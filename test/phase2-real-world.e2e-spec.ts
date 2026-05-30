@@ -56,6 +56,17 @@ describe('Phase 2 real-world features (e2e)', () => {
     return response.body.accessToken as string;
   }
 
+  async function cleanupE2eNotifications(runSuffix: string) {
+    await prisma.notification.deleteMany({
+      where: {
+        OR: [
+          { title: { contains: runSuffix } },
+          { message: { contains: runSuffix } },
+        ],
+      },
+    });
+  }
+
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -179,6 +190,8 @@ describe('Phase 2 real-world features (e2e)', () => {
   });
 
   afterAll(async () => {
+    await cleanupE2eNotifications(unique);
+
     if (testPropertyIds.length > 0) {
       await prisma.property.updateMany({
         where: { id: { in: testPropertyIds } },
