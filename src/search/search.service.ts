@@ -22,10 +22,12 @@ export class SearchService {
       maxPrice: query.maxPrice || '',
       rating: query.rating || '',
       category: query.category || query.propertyType || '',
+      propertyType: query.propertyType || '',
       categoryId: query.categoryId || '',
       page: query.page || '',
       limit: query.limit || '',
       sort: query.sort || '',
+      sortBy: query.sortBy || '',
     };
 
     return `${this.cachePrefix}:${JSON.stringify(cacheKeyParams)}`;
@@ -56,7 +58,6 @@ export class SearchService {
       limit: String(limit),
       sort: query.sort || query.sortBy,
     };
-    delete normalizedQuery.sortBy;
 
     const cacheKey = this.createCacheKey(normalizedQuery);
 
@@ -167,6 +168,18 @@ export class SearchService {
       propertiesWithRating = propertiesWithRating.filter(
         (property) => property.averageRating >= minRating,
       );
+    }
+
+    if (normalizedQuery.sort === 'rating_desc') {
+      propertiesWithRating = propertiesWithRating.sort((left, right) => {
+        const ratingDifference = right.averageRating - left.averageRating;
+
+        if (ratingDifference !== 0) {
+          return ratingDifference;
+        }
+
+        return right.totalReviews - left.totalReviews;
+      });
     }
 
     const total = propertiesWithRating.length;

@@ -9,10 +9,14 @@ import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { JwtPayload } from '../auth/jwt-payload.type';
 import { Roles } from '../auth/roles';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ReviewsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   private readonly reviewInclude = {
     analysis: true,
@@ -119,7 +123,7 @@ export class ReviewsService {
       throw new BadRequestException('User already reviewed this property');
     }
 
-    return this.prisma.review.create({
+    const review = await this.prisma.review.create({
       data: {
         rating: dto.rating,
         comment: dto.comment,
@@ -143,6 +147,14 @@ export class ReviewsService {
         },
       },
     });
+
+    await this.notificationsService.notifyTenantAdmins(property.tenantId, {
+      title: 'New review submitted',
+      message: `New review submitted for ${property.title}.`,
+      type: 'TENANT_REVIEW_SUBMITTED',
+    });
+
+    return review;
   }
 
   async getPropertyReviews(propertyId: number) {

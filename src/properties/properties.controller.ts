@@ -15,6 +15,8 @@ import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { CreatePropertyImageDto } from './dto/create-property-image.dto';
 import { AddPropertyAmenityDto } from './dto/add-property-amenity.dto';
+import { CreateAvailabilityDto } from './dto/create-availability.dto';
+import { CreatePropertyRuleDto } from './dto/create-property-rule.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -116,6 +118,78 @@ export class PropertiesController {
     @CurrentUser() currentUser: JwtPayload,
   ) {
     return this.propertiesService.removeAmenity(propertyAmenityId, currentUser);
+  }
+
+  @Get('cancellation-policies')
+  @ApiOperation({ summary: 'List available cancellation policies' })
+  getCancellationPolicies() {
+    return this.propertiesService.getCancellationPolicies();
+  }
+
+  @Get(':propertyId/rules')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: 'List house rules for a property' })
+  getRules(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @CurrentUser() currentUser?: JwtPayload,
+  ) {
+    return this.propertiesService.getRules(propertyId, currentUser);
+  }
+
+  @Post(':propertyId/rules')
+  @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+  @Roles(AppRoles.TENANT_ADMIN, AppRoles.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Add a house rule to a tenant property' })
+  addRule(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @Body() createPropertyRuleDto: CreatePropertyRuleDto,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    return this.propertiesService.addRule(
+      propertyId,
+      createPropertyRuleDto,
+      currentUser,
+    );
+  }
+
+  @Delete('rules/:ruleId')
+  @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+  @Roles(AppRoles.TENANT_ADMIN, AppRoles.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove a house rule from a tenant property' })
+  removeRule(
+    @Param('ruleId', ParseIntPipe) ruleId: number,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    return this.propertiesService.removeRule(ruleId, currentUser);
+  }
+
+  @Get(':propertyId/availability')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: 'List unavailable date ranges for a property' })
+  getAvailability(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @CurrentUser() currentUser?: JwtPayload,
+  ) {
+    return this.propertiesService.getAvailability(propertyId, currentUser);
+  }
+
+  @Post(':propertyId/availability')
+  @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
+  @Roles(AppRoles.TENANT_ADMIN, AppRoles.SUPER_ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Block a property date range from booking' })
+  addAvailability(
+    @Param('propertyId', ParseIntPipe) propertyId: number,
+    @Body() createAvailabilityDto: CreateAvailabilityDto,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    return this.propertiesService.addAvailability(
+      propertyId,
+      createAvailabilityDto,
+      currentUser,
+    );
   }
 
   @Get(':id')

@@ -7,6 +7,7 @@ import { App } from 'supertest/types';
 import { PrismaClient, type Prisma } from '../generated/prisma';
 import { AppModule } from '../src/app.module';
 import { Roles } from '../src/auth/roles';
+import { SearchService } from '../src/search/search.service';
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -32,6 +33,7 @@ describe('Phase 2 real-world features (e2e)', () => {
   let tenantId: number;
   let pendingBookingId: number;
   let otherUserBookingId: number;
+  let searchService: SearchService;
   const testPropertyIds: number[] = [];
   const testTenantIds: number[] = [];
 
@@ -54,6 +56,17 @@ describe('Phase 2 real-world features (e2e)', () => {
     return response.body.accessToken as string;
   }
 
+  async function cleanupE2eNotifications(runSuffix: string) {
+    await prisma.notification.deleteMany({
+      where: {
+        OR: [
+          { title: { contains: runSuffix } },
+          { message: { contains: runSuffix } },
+        ],
+      },
+    });
+  }
+
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -69,6 +82,7 @@ describe('Phase 2 real-world features (e2e)', () => {
     );
     await app.init();
     server = app.getHttpServer();
+    searchService = app.get(SearchService);
 
     const [tenantAdminRole, userRole] = await Promise.all([
       ensureRole(Roles.TENANT_ADMIN),
@@ -176,6 +190,8 @@ describe('Phase 2 real-world features (e2e)', () => {
   });
 
   afterAll(async () => {
+    await cleanupE2eNotifications(unique);
+
     if (testPropertyIds.length > 0) {
       await prisma.property.updateMany({
         where: { id: { in: testPropertyIds } },
@@ -294,16 +310,49 @@ describe('Phase 2 real-world features (e2e)', () => {
     ).resolves.toBe(1);
   });
 
-  it('rejects inactive, missing, and unauthenticated favorite requests', async () => {
+  it('rejects inactive, inactive-tenant, missing, and unauthenticated favorite requests', async () => {
     await request(server)
       .post(`/favorites/${inactivePropertyId}`)
       .set('Authorization', `Bearer ${userToken}`)
       .expect(404);
 
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { status: 'INACTIVE' },
+    });
+
+    await request(server)
+      .post(`/favorites/${activePropertyId}`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(404);
+
+    const inactiveTenantFavoritesResponse = await request(server)
+      .get('/favorites/me')
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(200);
+    expect(
+      inactiveTenantFavoritesResponse.body.some(
+        (favorite: { property: { id: number } }) =>
+          favorite.property.id === activePropertyId,
+      ),
+    ).toBe(false);
+
+    await request(server)
+      .delete(`/favorites/${activePropertyId}`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(200);
+
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { status: 'ACTIVE' },
+    });
+
     await request(server)
       .post('/favorites/999999999')
       .set('Authorization', `Bearer ${userToken}`)
       .expect(404);
+
+    await request(server).post(`/favorites/${activePropertyId}`).expect(401);
 
     await request(server).get('/favorites/me').expect(401);
   });
@@ -329,6 +378,7 @@ describe('Phase 2 real-world features (e2e)', () => {
       where: { id: tenantId },
       data: { status: 'INACTIVE' },
     });
+    await searchService.clearCache();
 
     const inactiveTenantSearchResponse = await request(server)
       .get('/search/properties')
@@ -349,6 +399,7 @@ describe('Phase 2 real-world features (e2e)', () => {
       where: { id: tenantId },
       data: { status: 'ACTIVE' },
     });
+    await searchService.clearCache();
   });
 
   it('allows a user to pay their own pending booking', async () => {

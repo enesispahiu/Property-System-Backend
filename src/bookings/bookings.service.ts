@@ -9,10 +9,14 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { JwtPayload } from '../auth/jwt-payload.type';
 import { Roles } from '../auth/roles';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class BookingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   private requireTenantId(currentUser: JwtPayload) {
     if (!currentUser.tenantId) {
@@ -47,6 +51,8 @@ export class BookingsService {
             },
           },
           payments: true,
+          guests: true,
+          invoice: true,
         },
       });
 
@@ -71,6 +77,8 @@ export class BookingsService {
             },
           },
           payments: true,
+          guests: true,
+          invoice: true,
         },
       });
 
@@ -96,6 +104,8 @@ export class BookingsService {
           },
         },
         payments: true,
+        guests: true,
+        invoice: true,
       },
     });
 
@@ -167,21 +177,62 @@ export class BookingsService {
       );
     }
 
+    const blockedAvailability = await this.prisma.availability.findFirst({
+      where: {
+        propertyId: createBookingDto.propertyId,
+        startDate: {
+          lt: endDate,
+        },
+        endDate: {
+          gt: startDate,
+        },
+      },
+    });
+
+    if (blockedAvailability) {
+      throw new BadRequestException(
+        'Property is unavailable for the selected dates',
+      );
+    }
+
     const totalPrice = this.calculateTotalPrice(
       startDate,
       endDate,
       property.price,
     );
+    const guests = createBookingDto.guests ?? [];
+    const guestCount =
+      createBookingDto.guestCount ?? Math.max(guests.length, 1);
+    const guestData = guests.map((guest) => {
+      const normalizedName = guest.fullName.trim();
+      const [firstName, ...rest] = normalizedName.split(/\s+/);
 
-    return this.prisma.booking.create({
+      if (!firstName) {
+        throw new BadRequestException('Guest full name is required');
+      }
+
+      return {
+        firstName,
+        lastName: rest.join(' ') || '-',
+        age: guest.age,
+      };
+    });
+
+    const booking = await this.prisma.booking.create({
       data: {
         startDate,
         endDate,
         status: 'PENDING',
         totalPrice,
+        guestCount,
         userId: bookingUserId,
         propertyId: createBookingDto.propertyId,
         tenantId: property.tenantId,
+        guests: guestData.length
+          ? {
+              create: guestData,
+            }
+          : undefined,
       },
       include: {
         user: true,
@@ -191,8 +242,26 @@ export class BookingsService {
           },
         },
         payments: true,
+        guests: true,
+        invoice: true,
       },
     });
+
+    await this.notificationsService.notifyUser(booking.userId, {
+      title: 'Booking pending payment',
+      message: `Your booking for ${property.title} is pending payment.`,
+      type: 'BOOKING_CREATED',
+      tenantId: booking.tenantId,
+      bookingId: booking.id,
+    });
+    await this.notificationsService.notifyTenantAdmins(booking.tenantId, {
+      title: 'New booking received',
+      message: `New booking received for ${property.title}.`,
+      type: 'TENANT_BOOKING_CREATED',
+      bookingId: booking.id,
+    });
+
+    return booking;
   }
 
   findAll(currentUser: JwtPayload) {
@@ -206,6 +275,8 @@ export class BookingsService {
             },
           },
           payments: true,
+          guests: true,
+          invoice: true,
         },
         orderBy: {
           createdAt: 'desc',
@@ -228,6 +299,8 @@ export class BookingsService {
             },
           },
           payments: true,
+          guests: true,
+          invoice: true,
         },
         orderBy: {
           createdAt: 'desc',
@@ -247,6 +320,8 @@ export class BookingsService {
           },
         },
         payments: true,
+        guests: true,
+        invoice: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -284,6 +359,8 @@ export class BookingsService {
           },
         },
         payments: true,
+        guests: true,
+        invoice: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -358,6 +435,24 @@ export class BookingsService {
       );
     }
 
+    const blockedAvailability = await this.prisma.availability.findFirst({
+      where: {
+        propertyId,
+        startDate: {
+          lt: endDate,
+        },
+        endDate: {
+          gt: startDate,
+        },
+      },
+    });
+
+    if (blockedAvailability) {
+      throw new BadRequestException(
+        'Property is unavailable for the selected dates',
+      );
+    }
+
     const bookingUserId =
       currentUser.role !== Roles.USER
         ? (updateBookingDto.userId ?? existingBooking.userId)
@@ -405,6 +500,8 @@ export class BookingsService {
           },
         },
         payments: true,
+        guests: true,
+        invoice: true,
       },
     });
   }
@@ -416,12 +513,31 @@ export class BookingsService {
       throw new ForbiddenException('You cannot cancel this booking');
     }
 
-    return this.prisma.booking.update({
+    const cancelledBooking = await this.prisma.booking.update({
       where: { id },
       data: {
         status: 'CANCELLED',
       },
     });
+
+    await this.notificationsService.notifyUser(cancelledBooking.userId, {
+      title: 'Booking cancelled',
+      message: `Booking cancelled for ${booking.property.title}.`,
+      type: 'BOOKING_CANCELLED',
+      tenantId: cancelledBooking.tenantId,
+      bookingId: cancelledBooking.id,
+    });
+    await this.notificationsService.notifyTenantAdmins(
+      cancelledBooking.tenantId,
+      {
+        title: 'Booking cancelled',
+        message: `Booking cancelled for ${booking.property.title}.`,
+        type: 'TENANT_BOOKING_CANCELLED',
+        bookingId: cancelledBooking.id,
+      },
+    );
+
+    return cancelledBooking;
   }
 
   async confirm(id: number, currentUser: JwtPayload) {

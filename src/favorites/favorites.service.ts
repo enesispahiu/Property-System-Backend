@@ -55,11 +55,23 @@ export class FavoritesService {
       where: {
         id: propertyId,
         status: 'ACTIVE',
+        tenant: {
+          status: 'ACTIVE',
+        },
+      },
+      include: {
+        tenant: {
+          select: {
+            status: true,
+          },
+        },
       },
     });
 
     if (!property) {
-      throw new NotFoundException(`Active property with id ${propertyId} not found`);
+      throw new NotFoundException(
+        `Active property from an active tenant with id ${propertyId} not found`,
+      );
     }
 
     const existing = await this.prisma.favoriteProperty.findUnique({
@@ -105,6 +117,12 @@ export class FavoritesService {
     const favorites = await this.prisma.favoriteProperty.findMany({
       where: {
         userId: currentUser.sub,
+        property: {
+          status: 'ACTIVE',
+          tenant: {
+            status: 'ACTIVE',
+          },
+        },
       },
       include: {
         property: {

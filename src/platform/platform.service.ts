@@ -11,12 +11,14 @@ import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { CreateTenantAdminDto } from './dto/create-tenant-admin.dto';
 import { SearchService } from '../search/search.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class PlatformService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly searchService: SearchService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   findTenants(options: { includeInactive?: boolean } = {}) {
@@ -45,7 +47,7 @@ export class PlatformService {
       throw new ConflictException('Tenant slug is already in use');
     }
 
-    return this.prisma.tenant.create({
+    const tenant = await this.prisma.tenant.create({
       data: {
         name: dto.name,
         slug,
@@ -54,6 +56,14 @@ export class PlatformService {
         primaryColor: dto.primaryColor,
       },
     });
+
+    await this.notificationsService.notifySuperAdmins({
+      title: 'Tenant created',
+      message: `Tenant ${tenant.name} was created.`,
+      type: 'PLATFORM_TENANT_CREATED',
+    });
+
+    return tenant;
   }
 
   async findTenant(id: number) {
@@ -99,14 +109,22 @@ export class PlatformService {
       }
     }
 
-    return this.prisma.tenant.update({
+    const tenant = await this.prisma.tenant.update({
       where: { id },
       data: dto,
     });
+
+    await this.notificationsService.notifySuperAdmins({
+      title: 'Tenant updated',
+      message: `Tenant ${tenant.name} was updated.`,
+      type: 'PLATFORM_TENANT_UPDATED',
+    });
+
+    return tenant;
   }
 
   async deleteTenant(id: number) {
-    await this.findTenant(id);
+    const tenant = await this.findTenant(id);
 
     const hasData = await this.prisma.tenant.findUnique({
       where: { id },
@@ -132,12 +150,26 @@ export class PlatformService {
         count.reviews > 0 ||
         count.notifications > 0)
     ) {
+      await this.notificationsService.notifySuperAdmins({
+        title: 'Tenant delete blocked',
+        message: `Tenant ${tenant.name} could not be deleted because it has related data.`,
+        type: 'PLATFORM_TENANT_DELETE_BLOCKED',
+      });
+
       throw new BadRequestException(
         'Tenant cannot be permanently deleted because it has related data. Deactivate/archive is recommended.',
       );
     }
 
-    return this.prisma.tenant.delete({ where: { id } });
+    const deletedTenant = await this.prisma.tenant.delete({ where: { id } });
+
+    await this.notificationsService.notifySuperAdmins({
+      title: 'Tenant deleted',
+      message: `Tenant ${deletedTenant.name} was permanently deleted.`,
+      type: 'PLATFORM_TENANT_DELETED',
+    });
+
+    return deletedTenant;
   }
 
   async deactivateTenant(id: number) {
@@ -149,6 +181,16 @@ export class PlatformService {
     });
 
     this.searchService.clearCache();
+    await this.notificationsService.notifySuperAdmins({
+      title: 'Tenant deactivated',
+      message: `Tenant ${tenant.name} was deactivated.`,
+      type: 'PLATFORM_TENANT_DEACTIVATED',
+    });
+    await this.notificationsService.notifyTenantAdmins(id, {
+      title: 'Tenant deactivated',
+      message: `Tenant ${tenant.name} was deactivated.`,
+      type: 'TENANT_DEACTIVATED',
+    });
 
     return tenant;
   }
@@ -162,6 +204,16 @@ export class PlatformService {
     });
 
     this.searchService.clearCache();
+    await this.notificationsService.notifySuperAdmins({
+      title: 'Tenant reactivated',
+      message: `Tenant ${tenant.name} was reactivated.`,
+      type: 'PLATFORM_TENANT_REACTIVATED',
+    });
+    await this.notificationsService.notifyTenantAdmins(id, {
+      title: 'Tenant reactivated',
+      message: `Tenant ${tenant.name} was reactivated.`,
+      type: 'TENANT_REACTIVATED',
+    });
 
     return tenant;
   }
@@ -193,7 +245,7 @@ export class PlatformService {
 
     const password = await bcrypt.hash(dto.password, 12);
 
-    return this.prisma.user.create({
+    const admin = await this.prisma.user.create({
       data: {
         email: dto.email,
         password,
@@ -208,6 +260,14 @@ export class PlatformService {
         createdAt: true,
       },
     });
+
+    await this.notificationsService.notifySuperAdmins({
+      title: 'Tenant admin created',
+      message: `Tenant admin ${admin.email} was created for ${tenant.name}.`,
+      type: 'PLATFORM_TENANT_ADMIN_CREATED',
+    });
+
+    return admin;
   }
 
   private slugify(value: string) {

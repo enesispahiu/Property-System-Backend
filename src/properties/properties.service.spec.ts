@@ -3,6 +3,7 @@ import { PropertiesService } from './properties.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SearchService } from '../search/search.service';
 import { Roles } from '../auth/roles';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('PropertiesService', () => {
   let service: PropertiesService;
@@ -16,9 +17,15 @@ describe('PropertiesService', () => {
   const searchService = {
     clearCache: jest.fn(),
   };
+  const notificationsService = {
+    notifyTenantAdmins: jest.fn(),
+    notifySuperAdmins: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    notificationsService.notifyTenantAdmins.mockResolvedValue(undefined);
+    notificationsService.notifySuperAdmins.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -30,6 +37,10 @@ describe('PropertiesService', () => {
         {
           provide: SearchService,
           useValue: searchService,
+        },
+        {
+          provide: NotificationsService,
+          useValue: notificationsService,
         },
       ],
     }).compile();
@@ -49,6 +60,7 @@ describe('PropertiesService', () => {
     prisma.property.update.mockResolvedValue({
       id: 1,
       tenantId: 10,
+      title: 'Beach Apartment',
       status: 'INACTIVE',
     });
 
@@ -71,6 +83,11 @@ describe('PropertiesService', () => {
       include: expect.any(Object),
     });
     expect(searchService.clearCache).toHaveBeenCalledTimes(1);
+    expect(notificationsService.notifyTenantAdmins).toHaveBeenCalledWith(10, {
+      title: 'Property deactivated',
+      message: 'Property Beach Apartment was removed from public listings.',
+      type: 'PROPERTY_DEACTIVATED',
+    });
   });
 
   it('reactivates a tenant property by setting it active', async () => {
@@ -82,6 +99,7 @@ describe('PropertiesService', () => {
     prisma.property.update.mockResolvedValue({
       id: 1,
       tenantId: 10,
+      title: 'Beach Apartment',
       status: 'ACTIVE',
     });
 
@@ -104,6 +122,11 @@ describe('PropertiesService', () => {
       include: expect.any(Object),
     });
     expect(searchService.clearCache).toHaveBeenCalledTimes(1);
+    expect(notificationsService.notifyTenantAdmins).toHaveBeenCalledWith(10, {
+      title: 'Property reactivated',
+      message: 'Property Beach Apartment was reactivated.',
+      type: 'PROPERTY_REACTIVATED',
+    });
   });
 
   it('does not allow tenant admin to reactivate another tenant property', async () => {
@@ -132,6 +155,7 @@ describe('PropertiesService', () => {
     prisma.property.update.mockResolvedValue({
       id: 3,
       tenantId: 99,
+      title: 'Platform Property',
       status: 'ACTIVE',
     });
 
@@ -145,6 +169,11 @@ describe('PropertiesService', () => {
     ).resolves.toMatchObject({
       id: 3,
       status: 'ACTIVE',
+    });
+    expect(notificationsService.notifySuperAdmins).toHaveBeenCalledWith({
+      title: 'Property reactivated',
+      message: 'Property Platform Property was reactivated.',
+      type: 'PROPERTY_REACTIVATED',
     });
   });
 

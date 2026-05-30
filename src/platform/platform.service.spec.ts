@@ -10,16 +10,30 @@ describe('PlatformService', () => {
       update: jest.fn(),
       delete: jest.fn(),
     },
+    user: {
+      findMany: jest.fn(),
+    },
   };
   const searchService = {
     clearCache: jest.fn(),
+  };
+  const notificationsService = {
+    notifySuperAdmins: jest.fn(),
+    notifyTenantAdmins: jest.fn(),
   };
 
   let service: PlatformService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new PlatformService(prisma as any, searchService as any);
+    prisma.user.findMany.mockResolvedValue([]);
+    notificationsService.notifySuperAdmins.mockResolvedValue(undefined);
+    notificationsService.notifyTenantAdmins.mockResolvedValue(undefined);
+    service = new PlatformService(
+      prisma as any,
+      searchService as any,
+      notificationsService as any,
+    );
   });
 
   it('lists active tenants by default', async () => {
@@ -70,6 +84,11 @@ describe('PlatformService', () => {
     await expect(service.deleteTenant(10)).resolves.toMatchObject({ id: 10 });
 
     expect(prisma.tenant.delete).toHaveBeenCalledWith({ where: { id: 10 } });
+    expect(notificationsService.notifySuperAdmins).toHaveBeenCalledWith({
+      title: 'Tenant deleted',
+      message: 'Tenant Empty Tenant was permanently deleted.',
+      type: 'PLATFORM_TENANT_DELETED',
+    });
   });
 
   it('rejects permanent delete when tenant has related data', async () => {
@@ -89,6 +108,12 @@ describe('PlatformService', () => {
       'Tenant cannot be permanently deleted because it has related data. Deactivate/archive is recommended.',
     );
     expect(prisma.tenant.delete).not.toHaveBeenCalled();
+    expect(notificationsService.notifySuperAdmins).toHaveBeenCalledWith({
+      title: 'Tenant delete blocked',
+      message:
+        'Tenant Busy Tenant could not be deleted because it has related data.',
+      type: 'PLATFORM_TENANT_DELETE_BLOCKED',
+    });
   });
 
   it('deactivates a tenant and clears public search cache', async () => {
@@ -107,6 +132,16 @@ describe('PlatformService', () => {
       data: { status: 'INACTIVE' },
     });
     expect(searchService.clearCache).toHaveBeenCalled();
+    expect(notificationsService.notifySuperAdmins).toHaveBeenCalledWith({
+      title: 'Tenant deactivated',
+      message: 'Tenant Tenant was deactivated.',
+      type: 'PLATFORM_TENANT_DEACTIVATED',
+    });
+    expect(notificationsService.notifyTenantAdmins).toHaveBeenCalledWith(12, {
+      title: 'Tenant deactivated',
+      message: 'Tenant Tenant was deactivated.',
+      type: 'TENANT_DEACTIVATED',
+    });
   });
 
   it('reactivates a tenant and clears public search cache', async () => {
@@ -125,6 +160,16 @@ describe('PlatformService', () => {
       data: { status: 'ACTIVE' },
     });
     expect(searchService.clearCache).toHaveBeenCalled();
+    expect(notificationsService.notifySuperAdmins).toHaveBeenCalledWith({
+      title: 'Tenant reactivated',
+      message: 'Tenant Tenant was reactivated.',
+      type: 'PLATFORM_TENANT_REACTIVATED',
+    });
+    expect(notificationsService.notifyTenantAdmins).toHaveBeenCalledWith(13, {
+      title: 'Tenant reactivated',
+      message: 'Tenant Tenant was reactivated.',
+      type: 'TENANT_REACTIVATED',
+    });
   });
 
   it('throws not found for a missing tenant', async () => {
