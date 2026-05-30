@@ -51,7 +51,29 @@ JWT_ACCESS_SECRET=replace_me
 JWT_REFRESH_SECRET=replace_me
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.2
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_TTL_SECONDS=60
 PORT=3000
+```
+
+## Redis Search Cache
+
+Public property search uses Redis through `ioredis` with a short TTL. If Redis is unavailable, search still queries PostgreSQL normally and cache read/write/invalidation errors are logged safely.
+
+Local Redis commands:
+
+```bash
+docker run -d --name property-redis -p 6379:6379 redis:latest
+docker start property-redis
+docker ps
+docker exec -it property-redis redis-cli ping
+```
+
+The ping command should return:
+
+```bash
+PONG
 ```
 
 ## Main Endpoints
@@ -69,7 +91,7 @@ Tenant-owned data is separated by `tenantId` on users, properties, bookings, and
 
 The Prisma schema contains 20 rental-domain models. In addition to core tenant, user, property, booking, review, amenity, image, availability, chat, token, search-history, category, and payment records, it includes saved properties through `FavoriteProperty`, user/system messages through `Notification`, billing records through `Invoice`, and named occupants through `BookingGuest`.
 
-Search uses an in-memory cache with a short TTL, so local development does not require Redis. Redis can be added later as an optional shared cache for multi-instance deployments.
+Search cache entries are invalidated when property or tenant status changes through the application services.
 
 Scheduled jobs are provided by `@nestjs/schedule`; the current job deletes search history older than 30 days.
 
